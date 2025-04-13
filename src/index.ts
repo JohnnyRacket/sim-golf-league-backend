@@ -2,6 +2,7 @@ import 'dotenv/config';
 import fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
 import jwt from '@fastify/jwt';
 import { registerRoutes } from './routes';
 
@@ -19,25 +20,40 @@ export async function createServer() {
     secret: process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production'
   });
 
+  // Register Swagger
   server.register(swagger, {
-    swagger: {
+    openapi: {
       info: {
         title: 'Golf Simulation League API',
         description: 'API for managing golf simulation leagues',
         version: '1.0.0'
       },
-      host: 'localhost',
-      schemes: ['http'],
-      consumes: ['application/json'],
-      produces: ['application/json'],
-      securityDefinitions: {
-        bearerAuth: {
-          type: 'apiKey',
-          name: 'Authorization',
-          in: 'header'
+      servers: [
+        {
+          url: 'http://localhost:3000',
+          description: 'Development server'
+        }
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT'
+          }
         }
       }
     }
+  });
+
+  // Register Swagger UI
+  server.register(swaggerUI, {
+    routePrefix: '/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true
+    },
+    staticCSP: true
   });
 
   // Health check endpoint (no auth required)
@@ -59,6 +75,7 @@ if (require.main === module) {
       const port = parseInt(process.env.PORT || '3000');
       await server.listen({ port, host: '0.0.0.0' });
       console.log(`Server is running on http://localhost:${port}`);
+      console.log(`API Documentation available at http://localhost:${port}/docs`);
     } catch (err) {
       console.error(err);
       process.exit(1);

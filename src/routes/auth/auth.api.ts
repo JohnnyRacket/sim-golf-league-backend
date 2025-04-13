@@ -5,6 +5,40 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { UserRole } from '../../types/database';
 
+// Schema definitions
+const loginSchema = {
+  type: 'object',
+  properties: {
+    username: { type: 'string' },
+    password: { type: 'string' }
+  },
+  required: ['username', 'password']
+};
+
+const registerSchema = {
+  type: 'object',
+  properties: {
+    username: { type: 'string', minLength: 3 },
+    email: { type: 'string', format: 'email' },
+    password: { type: 'string', minLength: 6 }
+  },
+  required: ['username', 'email', 'password']
+};
+
+const tokenResponseSchema = {
+  type: 'object',
+  properties: {
+    token: { type: 'string' }
+  }
+};
+
+const errorResponseSchema = {
+  type: 'object',
+  properties: {
+    error: { type: 'string' }
+  }
+};
+
 interface LoginBody {
   username: string;
   password: string;
@@ -18,7 +52,18 @@ interface RegisterBody {
 
 export async function authRoutes(fastify: FastifyInstance) {
   // Login route
-  fastify.post<{ Body: LoginBody }>('/login', async (request, reply) => {
+  fastify.post<{ Body: LoginBody }>('/login', {
+    schema: {
+      description: 'Login with username and password',
+      tags: ['authentication'],
+      body: loginSchema,
+      response: {
+        200: tokenResponseSchema,
+        401: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const { username, password } = request.body;
 
     try {
@@ -56,7 +101,18 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // Register route
-  fastify.post<{ Body: RegisterBody }>('/register', async (request, reply) => {
+  fastify.post<{ Body: RegisterBody }>('/register', {
+    schema: {
+      description: 'Register a new user account',
+      tags: ['authentication'],
+      body: registerSchema,
+      response: {
+        200: tokenResponseSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const { username, email, password } = request.body;
 
     try {
