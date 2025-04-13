@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify';
-import { authRoutes } from './auth/auth-routes';
-import { userRoutes } from './users/user-management-routes';
-import { leagueRoutes } from './leagues/league-management-routes';
-import { matchHistoryRoutes } from './match-history/match-history-routes';
+import { authRoutes } from './auth/auth.api';
+import { userRoutes } from './users/users.api';
+import { leagueRoutes } from './leagues/leagues.api';
+import { matchHistoryRoutes } from './match-history/match-history.api';
 import { authenticate } from '../middleware/auth';
 
 export async function registerRoutes(fastify: FastifyInstance) {

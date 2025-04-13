@@ -46,8 +46,8 @@ export async function matchHistoryRoutes(fastify: FastifyInstance) {
         .innerJoin('match_games as user_games', 'user_games.match_id', 'matches.id')
         .innerJoin('team_members as player', (join) => 
           join.on((eb) => eb.or([
-            eb('player.id', '=', 'user_games.home_player_id'),
-            eb('player.id', '=', 'user_games.away_player_id')
+            eb('player.id', '=', eb.ref('user_games.home_player_id')),
+            eb('player.id', '=', eb.ref('user_games.away_player_id'))
           ]))
         )
         .where('player.user_id', '=', parseInt(user_id));
@@ -121,8 +121,8 @@ export async function matchHistoryRoutes(fastify: FastifyInstance) {
       .innerJoin('leagues', 'leagues.id', 'teams.league_id')
       .leftJoin('match_games', (join) => 
         join.on((eb) => eb.or([
-          eb('match_games.home_player_id', '=', 'team_members.id'),
-          eb('match_games.away_player_id', '=', 'team_members.id')
+          eb('match_games.home_player_id', '=', eb.ref('team_members.id')),
+          eb('match_games.away_player_id', '=', eb.ref('team_members.id'))
         ]))
       )
       .select([

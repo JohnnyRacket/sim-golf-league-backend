@@ -1,5 +1,12 @@
 import { Generated } from 'kysely';
 
+export type UserRole = 'user' | 'admin';
+export type TeamMemberRole = 'captain' | 'member';
+export type TeamStatus = 'active' | 'inactive';
+export type LeagueStatus = 'pending' | 'active' | 'completed';
+export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
+
 export interface Database {
   users: UserTable;
   managers: ManagerTable;
@@ -14,25 +21,26 @@ export interface Database {
 }
 
 export interface UserTable {
-  id: Generated<number>;
+  id: string;
   username: string;
   email: string;
   password_hash: string;
+  role: UserRole;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface ManagerTable {
-  id: Generated<number>;
-  user_id: number;
+  id: string;
+  user_id: string;
   name: string;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface LocationTable {
-  id: Generated<number>;
-  manager_id: number;
+  id: string;
+  manager_id: string;
   name: string;
   address: string;
   created_at: Generated<Date>;
@@ -40,67 +48,66 @@ export interface LocationTable {
 }
 
 export interface LeagueTable {
-  id: Generated<number>;
-  location_id: number;
+  id: string;
+  location_id: string;
   name: string;
   start_date: Date;
   end_date: Date;
   max_teams: number;
-  status: 'active' | 'completed' | 'cancelled';
+  status: LeagueStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface TeamTable {
-  id: Generated<number>;
-  league_id: number;
+  id: string;
+  league_id: string;
   name: string;
-  captain_user_id: number;
+  captain_id: string;
   max_members: number;
-  status: 'active' | 'inactive';
+  status: TeamStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface TeamMemberTable {
-  id: Generated<number>;
-  team_id: number;
-  user_id: number;
-  role: 'captain' | 'member';
-  status: 'active' | 'inactive';
-  joined_date: Generated<Date>;
+  id: string;
+  team_id: string;
+  user_id: string;
+  role: TeamMemberRole;
+  status: TeamStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface MatchTable {
-  id: Generated<number>;
-  league_id: number;
-  home_team_id: number;
-  away_team_id: number;
+  id: string;
+  league_id: string;
+  home_team_id: string;
+  away_team_id: string;
   match_date: Date;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: MatchStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface MatchGameTable {
-  id: Generated<number>;
-  match_id: number;
+  id: string;
+  match_id: string;
   game_number: number;
-  home_player_id: number;
-  away_player_id: number;
+  home_player_id: string;
+  away_player_id: string;
   home_score: number | null;
   away_score: number | null;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: MatchGameStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface StatsTable {
   id: Generated<number>;
-  team_member_id: number;
-  league_id: number;
+  user_id: string;
+  league_id: string;
   matches_played: number;
   matches_won: number;
   total_score: number;
@@ -112,9 +119,9 @@ export interface StatsTable {
 
 export interface CommunicationTable {
   id: Generated<number>;
-  sender_id: number;
+  sender_id: string;
   recipient_type: 'league' | 'team' | 'user';
-  recipient_id: number;
+  recipient_id: string;
   message: string;
   sent_at: Generated<Date>;
   created_at: Generated<Date>;

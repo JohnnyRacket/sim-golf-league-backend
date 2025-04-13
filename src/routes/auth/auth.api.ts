@@ -21,17 +21,17 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     try {
       // Find user by username
-      const user = await db.oneOrNone(
-        'SELECT * FROM users WHERE username = $1',
-        [username]
-      );
+      const user = await db.selectFrom('users')
+        .selectAll()
+        .where('username', '=', username)
+        .executeTakeFirst();
 
       if (!user) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
       // Verify password
-      const validPassword = await bcrypt.compare(password, user.password);
+      const validPassword = await bcrypt.compare(password, user.password_hash);
       if (!validPassword) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
@@ -40,8 +40,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       const token = jwt.sign(
         { 
           userId: user.id,
-          username: user.username,
-          role: user.role
+          username: user.username
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
@@ -60,10 +59,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     try {
       // Check if username or email already exists
-      const existingUser = await db.oneOrNone(
-        'SELECT * FROM users WHERE username = $1 OR email = $2',
-        [username, email]
-      );
+      const existingUser = await db.selectFrom('users')
+        .selectAll()
+        .where((eb) => eb.or([
+          eb('username', '=', username),
+          eb('email', '=', email)
+        ]))
+        .executeTakeFirst();
 
       if (existingUser) {
         return reply.status(400).send({ 
@@ -75,19 +77,24 @@ export async function authRoutes(fastify: FastifyInstance) {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create new user
-      const newUser = await db.one(
-        `INSERT INTO users (username, email, password, role)
-         VALUES ($1, $2, $3, 'user')
-         RETURNING id, username, email, role`,
-        [username, email, hashedPassword]
-      );
+      const result = await db.insertInto('users')
+        .values({
+          username,
+          email,
+          password_hash: hashedPassword
+        })
+        .returning(['id', 'username', 'email'])
+        .executeTakeFirst();
+
+      if (!result) {
+        throw new Error('Failed to create user');
+      }
 
       // Generate JWT token
       const token = jwt.sign(
         { 
-          userId: newUser.id,
-          username: newUser.username,
-          role: newUser.role
+          userId: result.id,
+          username: result.username
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }

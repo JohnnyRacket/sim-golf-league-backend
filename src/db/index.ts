@@ -1,15 +1,15 @@
-import { Kysely, MysqlDialect } from 'kysely';
-import { createPool } from 'mysql2';
+import { Kysely, PostgresDialect } from 'kysely';
+import { Pool } from 'pg';
 import { Database } from '../types/database';
 
-const dialect = new MysqlDialect({
-  pool: createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'golf_league',
-    port: Number(process.env.DB_PORT) || 3306,
-    connectionLimit: 10,
+const dialect = new PostgresDialect({
+  pool: new Pool({
+    host: process.env.DB_HOST || 'db',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'golf_sim_league',
+    port: Number(process.env.DB_PORT) || 5432,
+    max: 10
   })
 });
 

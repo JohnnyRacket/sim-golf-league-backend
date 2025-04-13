@@ -40,6 +40,11 @@ export async function createServer() {
     }
   });
 
+  // Health check endpoint (no auth required)
+  server.get('/health', async () => {
+    return { status: 'ok' };
+  });
+
   // Register all routes
   server.register(registerRoutes);
 
@@ -51,8 +56,9 @@ if (require.main === module) {
   const start = async () => {
     try {
       const server = await createServer();
-      await server.listen({ port: 3000, host: '0.0.0.0' });
-      console.log('Server is running on http://localhost:3000');
+      const port = parseInt(process.env.PORT || '3000');
+      await server.listen({ port, host: '0.0.0.0' });
+      console.log(`Server is running on http://localhost:${port}`);
     } catch (err) {
       console.error(err);
       process.exit(1);

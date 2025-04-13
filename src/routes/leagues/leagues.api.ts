@@ -7,6 +7,8 @@ interface CreateLeagueBody {
   location_id: number;
   start_date: string;
   end_date: string;
+  max_teams: number;
+  status: 'active' | 'completed' | 'cancelled';
 }
 
 interface UpdateLeagueBody {
@@ -14,6 +16,7 @@ interface UpdateLeagueBody {
   start_date?: string;
   end_date?: string;
   status?: 'active' | 'completed' | 'cancelled';
+  max_teams?: number;
 }
 
 export async function leagueRoutes(fastify: FastifyInstance) {
@@ -41,10 +44,15 @@ export async function leagueRoutes(fastify: FastifyInstance) {
   });
 
   // Create new league (managers only)
-  fastify.post('/', {
+  fastify.post<{ Body: CreateLeagueBody }>('/', {
     preHandler: checkRole(['manager'])
-  }, async (request: FastifyRequest<{ Body: CreateLeagueBody }>, reply: FastifyReply) => {
-    const leagueData = request.body;
+  }, async (request, reply) => {
+    const leagueData = {
+      ...request.body,
+      start_date: new Date(request.body.start_date),
+      end_date: new Date(request.body.end_date),
+      status: request.body.status || 'active'
+    };
 
     // Verify location exists and manager has access
     const location = await db.selectFrom('locations')
@@ -80,15 +88,16 @@ export async function leagueRoutes(fastify: FastifyInstance) {
   });
 
   // Update league (managers only)
-  fastify.put('/:id', {
+  fastify.put<{ Params: { id: string }; Body: UpdateLeagueBody }>('/:id', {
     preHandler: checkRole(['manager'])
-  }, async (request: FastifyRequest<{
-    Params: { id: string },
-    Body: UpdateLeagueBody
-  }>, reply: FastifyReply) => {
+  }, async (request, reply) => {
     const { id } = request.params;
     const leagueId = parseInt(id);
-    const updateData = request.body;
+    const updateData = {
+      ...request.body,
+      start_date: request.body.start_date ? new Date(request.body.start_date) : undefined,
+      end_date: request.body.end_date ? new Date(request.body.end_date) : undefined
+    };
 
     // Verify league exists and manager has access
     const league = await db.selectFrom('leagues')
@@ -122,9 +131,9 @@ export async function leagueRoutes(fastify: FastifyInstance) {
   });
 
   // Delete league (managers only)
-  fastify.delete('/:id', {
+  fastify.delete<{ Params: { id: string } }>('/:id', {
     preHandler: checkRole(['manager'])
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request, reply) => {
     const { id } = request.params;
     const leagueId = parseInt(id);
 

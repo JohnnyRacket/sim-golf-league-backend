@@ -1,101 +1,64 @@
-# Golf Simulation League Backend
+# Golf Sim League Backend
 
-A TypeScript-based backend service for managing golf simulation leagues, built with Fastify and Kysely.
+A backend API for managing golf simulation leagues, teams, matches, and more.
 
-## Prerequisites
+## Features
 
-- Node.js (v14 or higher)
-- MySQL (v8.0 or higher)
-- npm or yarn
+- User authentication and authorization
+- League management
+- Team management
+- Match scheduling and scoring
+- Player statistics
 
-## Setup
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+
+### Running with Docker
 
 1. Clone the repository:
-```bash
-git clone <repository-url>
-cd golf-sim-league-backend
+   ```
+   git clone https://github.com/yourusername/golf-sim-league-backend.git
+   cd golf-sim-league-backend
+   ```
+
+2. Start the application:
+   ```
+   docker-compose up
+   ```
+
+3. The API will be available at http://localhost:3000
+
+### Development
+
+For development, you can use the following commands:
+
+```
+# Start the application in development mode
+docker-compose up
+
+# Rebuild the application
+docker-compose build
+
+# Stop the application
+docker-compose down
+
+# View logs
+docker-compose logs -f
 ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+## API Documentation
 
-3. Set up environment variables:
-Create a `.env` file in the root directory with the following variables:
-```
-DB_HOST=localhost
-DB_USER=your_username
-DB_PASSWORD=your_password
-DB_NAME=golf_league
-DB_PORT=3306
-```
+The API documentation will be available at http://localhost:3000/docs when the application is running.
 
-4. Initialize the database:
-```bash
-mysql -u your_username -p < src/db/schema.sql
-```
+## Environment Variables
 
-5. Build the project:
-```bash
-npm run build
-```
-
-6. Start the server:
-```bash
-npm start
-```
-
-For development with hot-reload:
-```bash
-npm run dev
-```
-
-## API Endpoints
-
-### Health Check
-- GET `/health` - Check if the service is running
-
-### Users
-- GET `/users` - List all users
-- GET `/users/:id` - Get user by ID
-
-### Leagues
-- GET `/leagues` - List all leagues
-- GET `/leagues/:id` - Get league by ID
-
-More endpoints will be added for:
-- Managers
-- Locations
-- Members
-- Match History
-- Stats
-- Communications
-
-## Database Schema
-
-The database consists of the following tables:
-- users
-- managers
-- locations
-- leagues
-- members
-- match_history
-- stats
-- communications
-
-Refer to `src/db/schema.sql` for detailed table structures and relationships.
-
-## Development
-
-To add new features or modify existing ones:
-
-1. Create new routes in appropriate files under `src/routes/`
-2. Update database schema if needed
-3. Add new types to `src/types/`
-4. Test your changes
-5. Build and restart the server
+- `NODE_ENV`: The environment (development, production, test)
+- `DATABASE_URL`: The PostgreSQL connection string
+- `JWT_SECRET`: The secret key for JWT token generation
 
 ## License
 
-MIT 
+This project is licensed under the MIT License. 
