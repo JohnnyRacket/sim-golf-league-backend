@@ -1,0 +1,45 @@
+{
+  "name": "golf-sim-league-backend",
+  "version": "1.0.0",
+  "description": "Golf simulation league management backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.3.0",
+    "@fastify/jwt": "^7.2.0",
+    "@fastify/swagger": "^8.8.0",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.3.1",
+    "fastify": "^4.21.0",
+    "kysely": "^0.26.1",
+    "mysql2": "^3.6.0"
+  },
+  "devDependencies": {
+    "@fastify/type-provider-json-schema-to-ts": "^2.2.2",
+    "@types/bcrypt": "^5.0.0",
+    "@types/fastify-jwt": "^0.8.1",
+    "@types/jest": "^29.5.14",
+    "@types/mysql": "^2.15.21",
+    "@types/node": "^20.5.0",
+    "@types/supertest": "^2.0.12",
+    "jest": "^29.5.0",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.1.6"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/tests/setup.ts"
+    ]
+  }
+}
