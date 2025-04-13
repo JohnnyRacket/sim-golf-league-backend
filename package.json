@@ -11,7 +11,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test-in-container:e2e": "jest --config jest.e2e.config.js",
+    "test-in-container:e2e": "jest -i --config jest.e2e.config.js",
     "test:e2e": "powershell -ExecutionPolicy Bypass -File ./e2e-test.ps1",
     "test:e2e:bash": "bash ./e2e-test.sh"
   },
