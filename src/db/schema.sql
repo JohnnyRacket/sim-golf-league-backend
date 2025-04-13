@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS golf_league;
-USE golf_league;
+-- PostgreSQL doesn't support CREATE DATABASE in normal scripts
+-- Database creation is handled through Docker or manually
 
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('user', 'admin');
@@ -8,6 +8,7 @@ CREATE TYPE team_status AS ENUM ('active', 'inactive');
 CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed');
 CREATE TYPE match_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled');
 CREATE TYPE match_game_status AS ENUM ('pending', 'in_progress', 'completed');
+CREATE TYPE recipient_type AS ENUM ('league', 'team', 'user');
 
 -- Create users table
 CREATE TABLE users (
@@ -154,26 +155,39 @@ CREATE TRIGGER update_match_games_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE IF NOT EXISTS stats (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  league_id INTEGER NOT NULL REFERENCES leagues(id),
-  games_played INTEGER NOT NULL DEFAULT 0,
-  games_won INTEGER NOT NULL DEFAULT 0,
-  total_score INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, league_id)
+-- Create stats table with proper UUID references
+CREATE TABLE stats (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id),
+    league_id UUID NOT NULL REFERENCES leagues(id),
+    games_played INTEGER NOT NULL DEFAULT 0,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_score INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, league_id)
 );
 
-CREATE TABLE IF NOT EXISTS communications (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  sender_id INT NOT NULL,
-  recipient_type ENUM('league', 'team', 'user') NOT NULL,
-  recipient_id INT NOT NULL,
-  message TEXT NOT NULL,
-  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (sender_id) REFERENCES users(id)
-); 
+-- Create trigger for stats table
+CREATE TRIGGER update_stats_updated_at
+    BEFORE UPDATE ON stats
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create communications table with PostgreSQL syntax
+CREATE TABLE communications (
+    id SERIAL PRIMARY KEY,
+    sender_id UUID NOT NULL REFERENCES users(id),
+    recipient_type recipient_type NOT NULL,
+    recipient_id UUID NOT NULL,
+    message TEXT NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create trigger for communications table
+CREATE TRIGGER update_communications_updated_at
+    BEFORE UPDATE ON communications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column(); 

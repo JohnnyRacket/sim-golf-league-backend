@@ -11,11 +11,6 @@ export async function registerRoutes(fastify: FastifyInstance) {
 
   // Protected routes
   fastify.addHook('onRequest', authenticate);
-  
-  // Health check
-  fastify.get('/health', async () => {
-    return { status: 'ok' };
-  });
 
   // Register entity routes
   fastify.register(userRoutes, { prefix: '/users' });

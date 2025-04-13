@@ -2,6 +2,9 @@
 FROM node:18-alpine AS base
 WORKDIR /app
 
+# Install curl for health checks
+RUN apk --no-cache add curl
+
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
@@ -28,5 +31,7 @@ ENV NODE_ENV=test
 EXPOSE 3001
 CMD ["npm", "run", "test-in-container:e2e"]
 
-# Command to run the application
+# Production stage
+FROM base AS production
+ENV NODE_ENV=production
 CMD ["npm", "start"] 
