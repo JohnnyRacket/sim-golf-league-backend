@@ -1,14 +1,8 @@
-import { describe, it, expect, beforeAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 import { ApiClient } from '../helpers/api-client';
-import { seedData } from '../helpers/setup';
+import { api, seedData } from '../helpers/setup';
 
 describe('Authentication Flow (E2E)', () => {
-  let api: ApiClient;
-
-  beforeAll(() => {
-    api = new ApiClient();
-  });
-
   it('should return 401 for protected routes without authentication', async () => {
     const response = await api.get('/leagues');
     expect(response.status).toBe(401);
@@ -25,7 +19,10 @@ describe('Authentication Flow (E2E)', () => {
   });
 
   it('should login successfully with valid credentials', async () => {
-    const response = await api.login('user1@example.com', 'password123');
+    const response = await api.post('/auth/login', {
+      email: 'user1@example.com',
+      password: 'password123'
+    });
     
     expect(response.status).toBe(200);
     expect(response.data).toHaveProperty('token');
@@ -37,7 +34,13 @@ describe('Authentication Flow (E2E)', () => {
 
   it('should access protected routes after login', async () => {
     // Login first
-    await api.login('user1@example.com', 'password123');
+    const loginResponse = await api.post('/auth/login', {
+      email: 'user1@example.com',
+      password: 'password123'
+    });
+    
+    // Set the token
+    api.setToken(loginResponse.data.token);
     
     // Try accessing a protected route
     const response = await api.get('/leagues');

@@ -1,11 +1,14 @@
 import { db } from '../../../src/db';
 import { seed } from './seeder';
 import { beforeAll, afterEach, afterAll } from '@jest/globals';
+import { ApiClient } from './api-client';
 
 // Test setup config
 export const API_URL = process.env.API_URL || 'http://localhost:3001';
 
-let seedData: any = {};
+// Will be populated during setup
+export let seedData: any;
+export let api: ApiClient;
 
 beforeAll(async () => {
   console.log('Starting E2E test setup...');
@@ -22,10 +25,14 @@ beforeAll(async () => {
     console.error('Error seeding database:', error);
     throw error;
   }
+  
+  // Initialize a clean API client
+  api = new ApiClient(API_URL);
 });
 
 afterEach(async () => {
-  // Any cleanup needed after each test
+  // Reset API client after each test
+  api.clearToken();
 });
 
 afterAll(async () => {
@@ -48,7 +55,4 @@ afterAll(async () => {
   } catch (error) {
     console.error('Error cleaning up database:', error);
   }
-});
-
-// Export the seeded data for tests to use
-export { seedData }; 
+}); 

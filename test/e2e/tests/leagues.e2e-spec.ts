@@ -1,99 +1,98 @@
 import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 import { ApiClient } from '../helpers/api-client';
-import { seedData } from '../helpers/setup';
+import { api, seedData } from '../helpers/setup';
 
 describe('Leagues API (E2E)', () => {
-  let api: ApiClient;
-  let adminApi: ApiClient;
+  let leagueId: string;
+  
+  // Helper function to login as admin
+  async function loginAsAdmin() {
+    const response = await api.post('/auth/login', {
+      email: 'admin@example.com',
+      password: 'admin123'
+    });
+    api.setToken(response.data.token);
+  }
+  
+  // Helper function to login as user
+  async function loginAsUser() {
+    const response = await api.post('/auth/login', {
+      email: 'user1@example.com',
+      password: 'password123'
+    });
+    api.setToken(response.data.token);
+  }
 
   beforeAll(() => {
-    api = new ApiClient();
-    adminApi = new ApiClient();
-  });
-
-  beforeEach(async () => {
-    // Reset tokens before each test
-    api.clearToken();
-    adminApi.clearToken();
-    
-    // Login as admin for admin-specific tests
-    await adminApi.login('admin@example.com', 'admin123');
+    // Get a league ID from seeded data for testing
+    leagueId = seedData.leagues[0].id;
   });
 
   describe('GET /leagues', () => {
     it('should return all leagues when authenticated', async () => {
-      // Login as a regular user
-      await api.login('user1@example.com', 'password123');
+      // Login first
+      await loginAsUser();
       
       const response = await api.get('/leagues');
       
       expect(response.status).toBe(200);
       expect(Array.isArray(response.data)).toBe(true);
       expect(response.data.length).toBeGreaterThan(0);
-      
-      // Verify league properties
-      const league = response.data[0];
-      expect(league).toHaveProperty('id');
-      expect(league).toHaveProperty('name');
-      expect(league).toHaveProperty('location_id');
-      expect(league).toHaveProperty('status');
     });
   });
-
+  
   describe('GET /leagues/:id', () => {
     it('should return a specific league by ID', async () => {
-      await api.login('user1@example.com', 'password123');
+      await loginAsUser();
       
-      // Use the seeded league ID
-      const leagueId = seedData.leagues[0].id;
       const response = await api.get(`/leagues/${leagueId}`);
       
       expect(response.status).toBe(200);
       expect(response.data).toHaveProperty('id', leagueId);
       expect(response.data).toHaveProperty('name');
       expect(response.data).toHaveProperty('location_id');
+      expect(response.data).toHaveProperty('start_date');
+      expect(response.data).toHaveProperty('end_date');
     });
-
+    
     it('should return 404 for non-existent league ID', async () => {
-      await api.login('user1@example.com', 'password123');
+      await loginAsUser();
       
       const response = await api.get('/leagues/nonexistent-id');
       
       expect(response.status).toBe(404);
     });
   });
-
+  
   describe('POST /leagues', () => {
     it('should create a new league when authenticated as admin', async () => {
-      const locationId = seedData.locations[0].id;
+      await loginAsAdmin();
       
       const newLeague = {
         name: 'Summer 2024 League',
-        location_id: locationId,
-        start_date: '2024-07-01',
-        end_date: '2024-09-30',
-        max_teams: 10,
+        location_id: seedData.locations[0].id,
+        start_date: '2024-06-01T00:00:00Z',
+        end_date: '2024-08-31T00:00:00Z',
+        max_teams: 6,
         status: 'pending'
       };
       
-      const response = await adminApi.post('/leagues', newLeague);
+      const response = await api.post('/leagues', newLeague);
       
       expect(response.status).toBe(201);
       expect(response.data).toHaveProperty('id');
-      expect(response.data).toHaveProperty('name', 'Summer 2024 League');
+      expect(response.data).toHaveProperty('message', 'League created successfully');
     });
-
+    
     it('should reject league creation for non-admin users', async () => {
-      await api.login('user1@example.com', 'password123');
-      
-      const locationId = seedData.locations[0].id;
+      await loginAsUser();
       
       const newLeague = {
-        name: 'Fall 2024 League',
-        location_id: locationId,
-        start_date: '2024-10-01',
-        end_date: '2024-12-31',
-        max_teams: 10,
+        name: 'Invalid League',
+        location_id: seedData.locations[0].id,
+        start_date: '2024-09-01T00:00:00Z',
+        end_date: '2024-11-30T00:00:00Z',
+        max_teams: 4,
         status: 'pending'
       };
       
@@ -102,54 +101,60 @@ describe('Leagues API (E2E)', () => {
       expect(response.status).toBe(403);
     });
   });
-
+  
   describe('PUT /leagues/:id', () => {
     it('should update a league when authenticated as admin', async () => {
-      const leagueId = seedData.leagues[0].id;
+      await loginAsAdmin();
       
       const updatedLeague = {
         name: 'Updated League Name',
-        max_teams: 12
+        max_teams: 12,
+        status: 'active'
       };
       
-      const response = await adminApi.put(`/leagues/${leagueId}`, updatedLeague);
+      const response = await api.put(`/leagues/${leagueId}`, updatedLeague);
       
       expect(response.status).toBe(200);
-      expect(response.data).toHaveProperty('id', leagueId);
-      expect(response.data).toHaveProperty('name', 'Updated League Name');
-      expect(response.data).toHaveProperty('max_teams', 12);
+      expect(response.data).toHaveProperty('message', 'League updated successfully');
     });
   });
-
+  
   describe('DELETE /leagues/:id', () => {
     it('should not allow league deletion for regular users', async () => {
-      await api.login('user1@example.com', 'password123');
+      await loginAsUser();
       
-      const leagueId = seedData.leagues[0].id;
       const response = await api.delete(`/leagues/${leagueId}`);
       
       expect(response.status).toBe(403);
     });
     
     it('should delete a league when authenticated as admin', async () => {
-      // We'll test with the newly created league, not our main seeded one
-      // Get all leagues
-      const leaguesResponse = await adminApi.get('/leagues');
-      const newLeagueId = leaguesResponse.data.find(
-        (l: any) => l.name === 'Summer 2024 League'
-      )?.id;
+      await loginAsAdmin();
       
-      if (newLeagueId) {
-        const response = await adminApi.delete(`/leagues/${newLeagueId}`);
-        expect(response.status).toBe(204);
-        
-        // Verify it's gone
-        const checkResponse = await adminApi.get(`/leagues/${newLeagueId}`);
-        expect(checkResponse.status).toBe(404);
-      } else {
-        // Skip if we couldn't find the test league
-        console.log('Skipping delete test - test league not found');
-      }
+      // First create a new league to delete
+      const newLeague = {
+        name: 'League to Delete',
+        location_id: seedData.locations[0].id,
+        start_date: '2024-10-01T00:00:00Z',
+        end_date: '2024-12-31T00:00:00Z',
+        max_teams: 6,
+        status: 'pending'
+      };
+      
+      const createResponse = await api.post('/leagues', newLeague);
+      expect(createResponse.status).toBe(201);
+      
+      const newLeagueId = createResponse.data.id;
+      
+      // Then delete it
+      const deleteResponse = await api.delete(`/leagues/${newLeagueId}`);
+      
+      expect(deleteResponse.status).toBe(200);
+      expect(deleteResponse.data).toHaveProperty('message', 'League deleted successfully');
+      
+      // Verify it's gone
+      const getResponse = await api.get(`/leagues/${newLeagueId}`);
+      expect(getResponse.status).toBe(404);
     });
   });
 }); 

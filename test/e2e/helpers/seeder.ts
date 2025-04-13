@@ -295,10 +295,31 @@ export async function seed(): Promise<SeedResult> {
     });
     
     // Create tokens (these would be actual JWT tokens in a real implementation)
+    const jwt = require('jsonwebtoken');
+    const secret = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
+    
+    // Generate real JWT tokens
     result.tokens = {
-      admin: `admin-token-${adminId}`,
-      user: `user-token-${user1Id}`,
-      captain: `captain-token-${user1Id}`
+      admin: jwt.sign({ 
+        id: adminId, 
+        username: 'admin',
+        email: 'admin@example.com',
+        roles: ['admin', 'manager']
+      }, secret, { expiresIn: '1h' }),
+      
+      user: jwt.sign({ 
+        id: user1Id, 
+        username: 'user1',
+        email: 'user1@example.com',
+        roles: ['user']
+      }, secret, { expiresIn: '1h' }),
+      
+      captain: jwt.sign({ 
+        id: user1Id, 
+        username: 'user1',
+        email: 'user1@example.com',
+        roles: ['user', 'captain']
+      }, secret, { expiresIn: '1h' })
     };
     
     console.log('Database seeding completed successfully');

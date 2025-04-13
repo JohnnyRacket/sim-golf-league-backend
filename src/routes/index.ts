@@ -6,14 +6,17 @@ import { matchHistoryRoutes } from './match-history/match-history.api';
 import { authenticate } from '../middleware/auth';
 
 export async function registerRoutes(fastify: FastifyInstance) {
-  // Public routes
+  // Public routes that don't require authentication
   fastify.register(authRoutes, { prefix: '/auth' });
-
-  // Protected routes
-  fastify.addHook('onRequest', authenticate);
-
-  // Register entity routes
-  fastify.register(userRoutes, { prefix: '/users' });
-  fastify.register(leagueRoutes, { prefix: '/leagues' });
-  fastify.register(matchHistoryRoutes, { prefix: '/match-history' });
+  
+  // Create a scope for protected routes with authentication
+  fastify.register(async (protectedRoutes) => {
+    // Add authentication middleware to all routes in this scope
+    protectedRoutes.addHook('onRequest', authenticate);
+    
+    // Register protected entity routes
+    protectedRoutes.register(userRoutes, { prefix: '/users' });
+    protectedRoutes.register(leagueRoutes, { prefix: '/leagues' });
+    protectedRoutes.register(matchHistoryRoutes, { prefix: '/match-history' });
+  });
 } 

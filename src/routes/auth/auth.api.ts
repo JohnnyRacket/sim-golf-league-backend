@@ -9,10 +9,10 @@ import { UserRole } from '../../types/database';
 const loginSchema = {
   type: 'object',
   properties: {
-    username: { type: 'string' },
+    email: { type: 'string', format: 'email' },
     password: { type: 'string' }
   },
-  required: ['username', 'password']
+  required: ['email', 'password']
 };
 
 const registerSchema = {
@@ -28,7 +28,14 @@ const registerSchema = {
 const tokenResponseSchema = {
   type: 'object',
   properties: {
-    token: { type: 'string' }
+    token: { type: 'string' },
+    user: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        username: { type: 'string' }
+      }
+    }
   }
 };
 
@@ -40,7 +47,7 @@ const errorResponseSchema = {
 };
 
 interface LoginBody {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -54,7 +61,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // Login route
   fastify.post<{ Body: LoginBody }>('/login', {
     schema: {
-      description: 'Login with username and password',
+      description: 'Login with email and password',
       tags: ['authentication'],
       body: loginSchema,
       response: {
@@ -64,13 +71,13 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    const { username, password } = request.body;
+    const { email, password } = request.body;
 
     try {
-      // Find user by username
+      // Find user by email
       const user = await db.selectFrom('users')
         .selectAll()
-        .where('username', '=', username)
+        .where('email', '=', email)
         .executeTakeFirst();
 
       if (!user) {
@@ -83,17 +90,37 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
+      // Check if user is a manager
+      const manager = await db.selectFrom('managers')
+        .select('id')
+        .where('user_id', '=', user.id)
+        .executeTakeFirst();
+
+      // Prepare roles array
+      const roles = [user.role]; // Add the base role
+      if (manager) {
+        roles.push('manager' as unknown as UserRole);
+      }
+
       // Generate JWT token
       const token = jwt.sign(
         { 
-          userId: user.id,
-          username: user.username
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          roles
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
       );
 
-      return { token };
+      return { 
+        token,
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      };
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Internal server error' });
@@ -144,24 +171,32 @@ export async function authRoutes(fastify: FastifyInstance) {
           password_hash: hashedPassword,
           role: 'user' as UserRole
         })
-        .returning(['id', 'username', 'email'])
+        .returning(['id', 'username', 'email', 'role'])
         .executeTakeFirst();
 
       if (!result) {
         throw new Error('Failed to create user');
       }
 
-      // Generate JWT token
+      // Generate JWT token with roles
       const token = jwt.sign(
         { 
-          userId: result.id,
-          username: result.username
+          id: result.id,
+          username: result.username,
+          email: result.email,
+          roles: [result.role]
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
       );
 
-      return { token };
+      return { 
+        token,
+        user: {
+          id: result.id,
+          username: result.username
+        }
+      };
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Internal server error' });
