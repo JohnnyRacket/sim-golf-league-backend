@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
+import { UserRole } from '../../types/database';
 
 interface LoginBody {
   username: string;
@@ -76,12 +78,15 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create new user
+      // Create new user with UUID and role
+      const userId = uuidv4();
       const result = await db.insertInto('users')
         .values({
+          id: userId,
           username,
           email,
-          password_hash: hashedPassword
+          password_hash: hashedPassword,
+          role: 'user' as UserRole
         })
         .returning(['id', 'username', 'email'])
         .executeTakeFirst();
