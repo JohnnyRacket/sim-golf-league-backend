@@ -6,10 +6,9 @@ import {
   TeamMemberRole, 
   TeamStatus, 
   LeagueStatus, 
-  MatchStatus, 
-  MatchGameStatus 
+  MatchStatus 
 } from '../../../src/types/database';
-import { SeedData, SeedUser, SeedManager, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch, SeedMatchGame } from './types';
+import { SeedData, SeedUser, SeedManager, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch } from './types';
 
 // Use the SeedData interface directly
 type SeedResult = SeedData;
@@ -26,7 +25,6 @@ export async function seed(): Promise<SeedData> {
     teams: [],
     teamMembers: [],
     matches: [],
-    matchGames: [],
     tokens: {
       admin: '',
       user: ''
@@ -231,6 +229,24 @@ export async function seed(): Promise<SeedData> {
     
     // Create a match
     const match1Id = uuidv4();
+    // Create player details object with the same info that would have been in match_games
+    const playerDetails = {
+      [member1Id]: {
+        game_number: 1,
+        score: null,
+        opponent_score: null,
+        opponent_id: member2Id,
+        status: 'pending'
+      },
+      [member2Id]: {
+        game_number: 1,
+        score: null,
+        opponent_score: null,
+        opponent_id: member1Id,
+        status: 'pending'
+      }
+    };
+    
     await db.insertInto('matches')
       .values({
         id: match1Id,
@@ -238,7 +254,10 @@ export async function seed(): Promise<SeedData> {
         home_team_id: team1Id,
         away_team_id: team2Id,
         match_date: new Date('2024-04-15T14:00:00Z'),
-        status: 'scheduled' as MatchStatus
+        status: 'scheduled' as MatchStatus,
+        home_team_score: 0,
+        away_team_score: 0,
+        player_details: playerDetails
       })
       .execute();
     
@@ -248,33 +267,10 @@ export async function seed(): Promise<SeedData> {
       home_team_id: team1Id,
       away_team_id: team2Id,
       match_date: new Date('2024-04-15T14:00:00Z'),
-      status: 'scheduled'
-    });
-    
-    // Create match games
-    const game1Id = uuidv4();
-    await db.insertInto('match_games')
-      .values({
-        id: game1Id,
-        match_id: match1Id,
-        game_number: 1,
-        home_player_id: user1Id,
-        away_player_id: user2Id,
-        home_score: null,
-        away_score: null,
-        status: 'pending' as MatchGameStatus
-      })
-      .execute();
-    
-    result.matchGames.push({
-      id: game1Id,
-      match_id: match1Id,
-      game_number: 1,
-      home_player_id: user1Id,
-      away_player_id: user2Id,
-      home_score: null,
-      away_score: null,
-      status: 'pending'
+      status: 'scheduled',
+      home_team_score: 0,
+      away_team_score: 0,
+      player_details: playerDetails
     });
     
     // Create tokens (these would be actual JWT tokens in a real implementation)

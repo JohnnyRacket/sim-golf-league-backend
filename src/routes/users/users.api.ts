@@ -135,7 +135,6 @@ export async function userRoutes(fastify: FastifyInstance) {
             eb2('team_members.team_id', '=', eb2.ref('away_team.id'))
           ]))
         )
-        .leftJoin('match_games', 'match_games.match_id', 'matches.id')
         .select([
           'matches.id',
           'matches.match_date',
@@ -144,8 +143,8 @@ export async function userRoutes(fastify: FastifyInstance) {
           'home_team.name as home_team_name',
           'away_team.id as away_team_id',
           'away_team.name as away_team_name',
-          sql<number>`SUM(CASE WHEN match_games.home_score > match_games.away_score THEN 1 ELSE 0 END)`.as('home_games_won'),
-          sql<number>`SUM(CASE WHEN match_games.away_score > match_games.home_score THEN 1 ELSE 0 END)`.as('away_games_won')
+          'matches.home_team_score',
+          'matches.away_team_score'
         ])
         .where('team_members.user_id', '=', userId)
         .where('matches.status', '=', 'completed')
@@ -156,7 +155,9 @@ export async function userRoutes(fastify: FastifyInstance) {
           'home_team.id',
           'home_team.name',
           'away_team.id',
-          'away_team.name'
+          'away_team.name',
+          'matches.home_team_score',
+          'matches.away_team_score'
         ])
         .orderBy('matches.match_date', 'desc')
         .limit(5)

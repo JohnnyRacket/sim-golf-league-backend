@@ -160,8 +160,6 @@ export async function leagueRoutes(fastify: FastifyInstance) {
           join.on('teams.id', '=', 'away_matches.away_team_id')
               .on('away_matches.league_id', '=', id)
         )
-        .leftJoin('match_games as home_games', 'home_games.match_id', 'home_matches.id')
-        .leftJoin('match_games as away_games', 'away_games.match_id', 'away_matches.id')
         .select([
           'teams.id',
           'teams.name',
@@ -169,29 +167,18 @@ export async function leagueRoutes(fastify: FastifyInstance) {
             CASE WHEN home_matches.id IS NOT NULL THEN home_matches.id ELSE away_matches.id END
             ELSE NULL END)`.as('matches_played'),
           sql<number>`COUNT(DISTINCT CASE 
-            WHEN home_matches.status = 'completed' AND (
-              SELECT COUNT(*) FROM match_games 
-              WHERE match_id = home_matches.id AND home_score > away_score
-            ) > (
-              SELECT COUNT(*) FROM match_games 
-              WHERE match_id = home_matches.id AND away_score > home_score
-            ) THEN home_matches.id
-            WHEN away_matches.status = 'completed' AND (
-              SELECT COUNT(*) FROM match_games 
-              WHERE match_id = away_matches.id AND away_score > home_score
-            ) > (
-              SELECT COUNT(*) FROM match_games 
-              WHERE match_id = away_matches.id AND home_score > away_score
-            ) THEN away_matches.id
+            WHEN home_matches.status = 'completed' AND home_matches.home_team_score > home_matches.away_team_score THEN home_matches.id
+            WHEN away_matches.status = 'completed' AND away_matches.away_team_score > away_matches.home_team_score THEN away_matches.id
             ELSE NULL END)`.as('matches_won'),
-          sql<number>`SUM(CASE 
-            WHEN home_games.match_id IS NOT NULL AND home_games.home_score > home_games.away_score THEN 1
-            WHEN away_games.match_id IS NOT NULL AND away_games.away_score > away_games.home_score THEN 1
-            ELSE 0 END)`.as('games_won'),
-          sql<number>`COUNT(CASE 
-            WHEN home_games.match_id IS NOT NULL THEN 1
-            WHEN away_games.match_id IS NOT NULL THEN 1
-            ELSE NULL END)`.as('games_played')
+          sql<number>`COALESCE(SUM(CASE 
+            WHEN home_matches.status = 'completed' THEN home_matches.home_team_score
+            ELSE 0 END), 0) + COALESCE(SUM(CASE 
+            WHEN away_matches.status = 'completed' THEN away_matches.away_team_score
+            ELSE 0 END), 0)`.as('games_won'),
+          sql<number>`COALESCE(SUM(CASE 
+            WHEN home_matches.status = 'completed' THEN home_matches.home_team_score + home_matches.away_team_score
+            WHEN away_matches.status = 'completed' THEN away_matches.home_team_score + away_matches.away_team_score
+            ELSE 0 END), 0)`.as('games_played')
         ])
         .where('teams.league_id', '=', id)
         .groupBy(['teams.id', 'teams.name'])
@@ -200,7 +187,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       
       return {
         league,
-        standings: standings.map(team => ({
+        standings: standings.map((team: any) => ({
           ...team,
           win_percentage: team.matches_played > 0 
             ? Math.round((team.matches_won / team.matches_played) * 100) 

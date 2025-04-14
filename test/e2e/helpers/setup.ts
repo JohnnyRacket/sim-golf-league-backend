@@ -41,7 +41,6 @@ afterAll(async () => {
   
   try {
     // Clean up test data
-    await db.deleteFrom('match_games').execute();
     await db.deleteFrom('matches').execute();
     await db.deleteFrom('team_members').execute();
     await db.deleteFrom('teams').execute();

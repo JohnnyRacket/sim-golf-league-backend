@@ -3,8 +3,7 @@ import {
   TeamMemberRole, 
   TeamStatus, 
   LeagueStatus, 
-  MatchStatus, 
-  MatchGameStatus 
+  MatchStatus 
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -64,17 +63,9 @@ export interface SeedMatch {
   away_team_id: string;
   match_date: Date;
   status: MatchStatus;
-}
-
-export interface SeedMatchGame {
-  id: string;
-  match_id: string;
-  game_number: number;
-  home_player_id: string;
-  away_player_id: string;
-  home_score: number | null;
-  away_score: number | null;
-  status: MatchGameStatus;
+  home_team_score: number;
+  away_team_score: number;
+  player_details: Record<string, any>;
 }
 
 export interface SeedTokens {
@@ -90,6 +81,5 @@ export interface SeedData {
   teams: SeedTeam[];
   teamMembers: SeedTeamMember[];
   matches: SeedMatch[];
-  matchGames: SeedMatchGame[];
   tokens: SeedTokens;
 } 
