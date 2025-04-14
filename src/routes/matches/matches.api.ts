@@ -2,116 +2,25 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { MatchStatus, MatchGameStatus, MatchTable } from '../../types/database';
-import { sql } from 'kysely';
-import { MatchesService } from '../../services/matches.service';
-
-// Schema definitions
-const matchSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    league_id: { type: 'string', format: 'uuid' },
-    home_team_id: { type: 'string', format: 'uuid' },
-    away_team_id: { type: 'string', format: 'uuid' },
-    match_date: { type: 'string', format: 'date-time' },
-    simulator_settings: { 
-      type: 'object',
-      additionalProperties: true
-    },
-    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
-    created_at: { type: 'string', format: 'date-time' },
-    updated_at: { type: 'string', format: 'date-time' },
-    player_details: {
-      type: 'object',
-      additionalProperties: true
-    }
-  },
-  required: ['id', 'league_id', 'home_team_id', 'away_team_id', 'match_date', 'status', 'player_details']
-};
-
-const createMatchSchema = {
-  type: 'object',
-  properties: {
-    league_id: { type: 'string', format: 'uuid' },
-    home_team_id: { type: 'string', format: 'uuid' },
-    away_team_id: { type: 'string', format: 'uuid' },
-    match_date: { type: 'string', format: 'date-time' },
-    simulator_settings: { 
-      type: 'object',
-      additionalProperties: true
-    },
-    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] }
-  },
-  required: ['league_id', 'home_team_id', 'away_team_id', 'match_date']
-};
-
-const updateMatchSchema = {
-  type: 'object',
-  properties: {
-    match_date: { type: 'string', format: 'date-time' },
-    simulator_settings: { 
-      type: 'object',
-      additionalProperties: true
-    },
-    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] }
-  }
-};
-
-const matchGameSchema = {
-  type: 'object',
-  properties: {
-    game_number: { type: 'integer', minimum: 1 },
-    home_player_id: { type: 'string', format: 'uuid' },
-    away_player_id: { type: 'string', format: 'uuid' },
-    home_score: { type: 'integer', nullable: true },
-    away_score: { type: 'integer', nullable: true },
-    status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] }
-  },
-  required: ['game_number', 'home_player_id', 'away_player_id']
-};
-
-const scoreUpdateSchema = {
-  type: 'object',
-  properties: {
-    home_score: { type: 'integer' },
-    away_score: { type: 'integer' }
-  },
-  required: ['home_score', 'away_score']
-};
-
-interface CreateMatchBody {
-  league_id: string;
-  home_team_id: string;
-  away_team_id: string;
-  match_date: string;
-  simulator_settings?: Record<string, any>;
-  status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-}
-
-interface UpdateMatchBody {
-  match_date?: string;
-  simulator_settings?: Record<string, any>;
-  status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-}
-
-interface MatchGameBody {
-  game_number: number;
-  home_player_id: string;
-  away_player_id: string;
-  home_score?: number | null;
-  away_score?: number | null;
-  status?: 'pending' | 'in_progress' | 'completed';
-}
-
-interface ScoreUpdateBody {
-  home_score: number;
-  away_score: number;
-}
+import { MatchStatus, MatchTable } from '../../types/database';
+import { MatchesService } from './matches.service';
+import {
+  matchSchema,
+  createMatchSchema,
+  updateMatchSchema,
+  matchGameSchema,
+  scoreUpdateSchema,
+  CreateMatchBody,
+  UpdateMatchBody,
+  MatchGameBody,
+  ScoreUpdateBody
+} from './matches.types';
 
 export async function matchRoutes(fastify: FastifyInstance) {
   // Initialize MatchesService
   const matchesService = new MatchesService(db);
+
+  // GET ENDPOINTS
 
   // Get upcoming matches for current user
   fastify.get('/upcoming', async (request, reply) => {
@@ -229,6 +138,38 @@ export async function matchRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get user's match summary by league
+  fastify.get('/user/:user_id/summary', async (request: FastifyRequest<{
+    Params: { user_id: string }
+  }>, reply: FastifyReply) => {
+    const { user_id } = request.params;
+
+    try {
+      // Use service to get user match summaries
+      const summaries = await matchesService.getUserMatchSummaries(user_id);
+      return summaries;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+  
+  // Current user's match summary - shorthand endpoint
+  fastify.get('/me/summary', async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      
+      // Use service to get user match summaries
+      const summaries = await matchesService.getUserMatchSummaries(userId);
+      return summaries;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // POST/PUT ENDPOINTS
+
   // Create new match (managers only)
   fastify.post<{ Body: CreateMatchBody }>('/', {
     preHandler: checkRole(['manager']),
@@ -337,7 +278,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Add a game to a match
+  // DEPRECATED ENDPOINTS
+
+  // Add a game to a match (deprecated)
   fastify.post<{ Params: { id: string }; Body: MatchGameBody }>('/:id/games', {
     preHandler: checkRole(['manager']),
     schema: {
@@ -362,18 +305,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Update game score
-  fastify.put<{ Params: { match_id: string; game_id: string }; Body: ScoreUpdateBody }>('/:match_id/games/:game_id/score', async (request, reply) => {
-    try {
-      reply.code(410).send({ 
-        error: 'This endpoint is deprecated',
-        message: 'Games are now stored directly in the match record. Use the submit match results endpoint.'
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
-  });
+  // FUNCTIONAL ENDPOINTS
 
   // Submit match result (admin or manager only)
   fastify.put<{ Params: { id: string }; Body: { status: string; games: any[] } }>('/:id/result', {
@@ -468,36 +400,6 @@ export async function matchRoutes(fastify: FastifyInstance) {
       }
       
       reply.send({ message: 'Match result submitted successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
-  });
-
-  // Get user's match summary by league
-  fastify.get('/user/:user_id/summary', async (request: FastifyRequest<{
-    Params: { user_id: string }
-  }>, reply: FastifyReply) => {
-    const { user_id } = request.params;
-
-    try {
-      // Use service to get user match summaries
-      const summaries = await matchesService.getUserMatchSummaries(user_id);
-      return summaries;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
-  });
-  
-  // Current user's match summary - shorthand endpoint
-  fastify.get('/me/summary', async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      
-      // Use service to get user match summaries
-      const summaries = await matchesService.getUserMatchSummaries(userId);
-      return summaries;
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });

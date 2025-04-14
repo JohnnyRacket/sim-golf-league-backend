@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, beforeEach } from '@jest/globals';
 import { ApiClient } from '../helpers/api-client';
 import { api, seedData } from '../helpers/setup';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,7 +30,7 @@ describe('Leagues API (E2E)', () => {
   });
 
   describe('GET /leagues', () => {
-    it('should return all leagues when authenticated', async () => {
+    test('should return all leagues when authenticated', async () => {
       // Login first
       await loginAsUser();
       
@@ -43,7 +43,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('GET /leagues/my', () => {
-    it('should return leagues the user is participating in', async () => {
+    test('should return leagues the user is participating in', async () => {
       await loginAsUser();
       
       const response = await api.get('/leagues/my');
@@ -59,7 +59,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('GET /leagues/:id', () => {
-    it('should return a specific league by ID', async () => {
+    test('should return a specific league by ID', async () => {
       await loginAsUser();
       
       const response = await api.get(`/leagues/${leagueId}`);
@@ -72,7 +72,7 @@ describe('Leagues API (E2E)', () => {
       expect(response.data).toHaveProperty('end_date');
     });
     
-    it('should return 404 for non-existent league ID', async () => {
+    test('should return 404 for non-existent league ID', async () => {
       await loginAsUser();
       
       // Use a valid UUID format that doesn't exist in the database
@@ -84,7 +84,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('GET /leagues/:id/standings', () => {
-    it('should return league standings', async () => {
+    test('should return league standings', async () => {
       await loginAsUser();
       
       const response = await api.get(`/leagues/${leagueId}/standings`);
@@ -106,7 +106,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('GET /leagues/:id/members', () => {
-    it('should return league members grouped by team', async () => {
+    test('should return league members grouped by team', async () => {
       await loginAsUser();
       
       const response = await api.get(`/leagues/${leagueId}/members`);
@@ -132,7 +132,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('POST /leagues', () => {
-    it('should create a new league when authenticated as admin', async () => {
+    test('should create a new league when authenticated as admin', async () => {
       await loginAsAdmin();
       
       const newLeague = {
@@ -151,7 +151,7 @@ describe('Leagues API (E2E)', () => {
       expect(response.data).toHaveProperty('message', 'League created successfully');
     });
     
-    it('should reject league creation for non-admin users', async () => {
+    test('should reject league creation for non-admin users', async () => {
       await loginAsUser();
       
       const newLeague = {
@@ -170,7 +170,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('PUT /leagues/:id', () => {
-    it('should update a league when authenticated as admin', async () => {
+    test('should update a league when authenticated as admin', async () => {
       await loginAsAdmin();
       
       const updatedLeague = {
@@ -187,7 +187,7 @@ describe('Leagues API (E2E)', () => {
   });
   
   describe('DELETE /leagues/:id', () => {
-    it('should not allow league deletion for regular users', async () => {
+    test('should not allow league deletion for regular users', async () => {
       await loginAsUser();
       
       const response = await api.delete(`/leagues/${leagueId}`);
@@ -195,7 +195,7 @@ describe('Leagues API (E2E)', () => {
       expect(response.status).toBe(403);
     });
     
-    it('should delete a league when authenticated as admin', async () => {
+    test('should delete a league when authenticated as admin', async () => {
       await loginAsAdmin();
       
       // First create a new league to delete

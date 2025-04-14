@@ -1,49 +1,13 @@
 import { Kysely } from 'kysely';
-import { Database, MatchTable } from "../types/database";
-import { MatchStatus } from "../types/enums";
-
-// Define enhanced interfaces for responses
-interface TeamInfo {
-  id: string;
-  name: string;
-}
-
-interface LeagueInfo {
-  id: string;
-  name: string;
-}
-
-interface EnhancedMatch {
-  id: string;
-  league_id: string;
-  home_team_id: string;
-  away_team_id: string;
-  match_date: Date;
-  status: MatchStatus;
-  home_team_score: number;
-  away_team_score: number;
-  player_details?: Record<string, any>;
-  simulator_settings?: Record<string, any>;
-  created_at: Date;
-  updated_at: Date;
-  home_team?: TeamInfo;
-  away_team?: TeamInfo;
-  league?: LeagueInfo;
-}
-
-interface UserMatchSummary {
-  league_id: string;
-  league_name: string;
-  team_id: string;
-  team_name: string;
-  matches_played: number;
-  games_won: number;
-  average_score: number;
-}
-
-interface ManagerInfo {
-  user_id: string;
-}
+import { Database, MatchTable } from "../../types/database";
+import { MatchStatus } from "../../types/enums";
+import { 
+  EnhancedMatch, 
+  TeamInfo, 
+  LeagueInfo, 
+  UserMatchSummary, 
+  ManagerInfo 
+} from "./matches.types";
 
 export class MatchesService {
   private db: Kysely<Database>;
@@ -52,6 +16,9 @@ export class MatchesService {
     this.db = db;
   }
 
+  /**
+   * Creates a new match in the database
+   */
   async createMatch(matchData: Omit<MatchTable, "id" | "created_at" | "updated_at">): Promise<MatchTable> {
     try {
       const result = await this.db.insertInto('matches')
@@ -68,6 +35,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Gets a match by ID
+   */
   async getMatchById(id: string): Promise<MatchTable | null> {
     try {
       const match = await this.db.selectFrom('matches')
@@ -80,6 +50,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Gets a match by ID with related team and league info
+   */
   async getEnhancedMatchById(id: string): Promise<EnhancedMatch | null> {
     try {
       // Use a single JOIN query instead of multiple separate queries
@@ -143,6 +116,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Gets matches with optional filtering
+   */
   async getMatches(filters: Partial<{ 
     league_id: string; 
     team_id: string; 
@@ -205,6 +181,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Gets enhanced matches with team and league info
+   */
   async getEnhancedMatches(filters: Partial<{ 
     league_id: string; 
     team_id: string; 
@@ -321,6 +300,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Updates an existing match
+   */
   async updateMatch(id: string, data: Partial<Omit<MatchTable, "id" | "created_at" | "updated_at">>): Promise<MatchTable | null> {
     try {
       const result = await this.db.updateTable('matches')
@@ -335,6 +317,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Submits match results including player details
+   */
   async submitMatchResults(
     matchId: string, 
     homeTeamScore: number, 
@@ -362,6 +347,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Deletes a match
+   */
   async deleteMatch(id: string): Promise<boolean> {
     try {
       const result = await this.db.deleteFrom('matches')
@@ -375,6 +363,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Checks if a user is the manager of the league a match belongs to
+   */
   async isLeagueManager(matchId: string, userId: string): Promise<boolean> {
     try {
       // Use a single query with multiple JOINs
@@ -396,6 +387,9 @@ export class MatchesService {
     }
   }
   
+  /**
+   * Gets the manager info for a league
+   */
   async getLeagueManager(leagueId: string): Promise<ManagerInfo | null> {
     try {
       // Use a single query with JOINs to get the manager info
@@ -416,6 +410,9 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Gets match summaries for a user across all their teams
+   */
   async getUserMatchSummaries(userId: string): Promise<UserMatchSummary[]> {
     try {
       // First, get all team memberships for the user in a single query
@@ -538,6 +535,48 @@ export class MatchesService {
     }
   }
 
+  /**
+   * Verifies that teams exist and are part of the specified league
+   * @returns Object containing both teams or null if verification fails
+   */
+  async verifyTeamsForMatch(homeTeamId: string, awayTeamId: string, leagueId: string): Promise<{
+    homeTeam: TeamInfo,
+    awayTeam: TeamInfo
+  } | null> {
+    try {
+      // Check if teams are the same
+      if (homeTeamId === awayTeamId) {
+        return null;
+      }
+      
+      // Verify home team exists and is in the specified league
+      const homeTeam = await this.db.selectFrom('teams')
+        .select(['id', 'name'])
+        .where('id', '=', homeTeamId)
+        .where('league_id', '=', leagueId)
+        .executeTakeFirst();
+      
+      if (!homeTeam) {
+        return null;
+      }
+      
+      // Verify away team exists and is in the specified league
+      const awayTeam = await this.db.selectFrom('teams')
+        .select(['id', 'name'])
+        .where('id', '=', awayTeamId)
+        .where('league_id', '=', leagueId)
+        .executeTakeFirst();
+      
+      if (!awayTeam) {
+        return null;
+      }
+      
+      return { homeTeam, awayTeam };
+    } catch (error) {
+      throw new Error(`Failed to verify teams: ${error}`);
+    }
+  }
+
   // Helper method to update player stats
   private async updatePlayerStats(matchId: string, playerDetails: Record<string, any>): Promise<void> {
     try {
@@ -642,48 +681,6 @@ export class MatchesService {
       }
     } catch (error) {
       console.error('Error updating player stats:', error);
-    }
-  }
-
-  /**
-   * Verifies that teams exist and are part of the specified league
-   * @returns Object containing both teams or null if verification fails
-   */
-  async verifyTeamsForMatch(homeTeamId: string, awayTeamId: string, leagueId: string): Promise<{
-    homeTeam: { id: string; name: string },
-    awayTeam: { id: string; name: string }
-  } | null> {
-    try {
-      // Check if teams are the same
-      if (homeTeamId === awayTeamId) {
-        return null;
-      }
-      
-      // Verify home team exists and is in the specified league
-      const homeTeam = await this.db.selectFrom('teams')
-        .select(['id', 'name'])
-        .where('id', '=', homeTeamId)
-        .where('league_id', '=', leagueId)
-        .executeTakeFirst();
-      
-      if (!homeTeam) {
-        return null;
-      }
-      
-      // Verify away team exists and is in the specified league
-      const awayTeam = await this.db.selectFrom('teams')
-        .select(['id', 'name'])
-        .where('id', '=', awayTeamId)
-        .where('league_id', '=', leagueId)
-        .executeTakeFirst();
-      
-      if (!awayTeam) {
-        return null;
-      }
-      
-      return { homeTeam, awayTeam };
-    } catch (error) {
-      throw new Error(`Failed to verify teams: ${error}`);
     }
   }
 } 
