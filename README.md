@@ -177,3 +177,10 @@ The simulator settings are stored as a JSONB field in the database, allowing for
 - `POST /users` - Create a new user (admin only)
 - `PUT /users/:id` - Update user (admin only)
 - `DELETE /users/:id` - Delete user (admin only)
+
+
+# Ideas
+
+need to know if a manager is a manager or not when they login for the view they see
+need to handle more logic im sure around leagues, for example league types and match types
+need to handle team handicaps
