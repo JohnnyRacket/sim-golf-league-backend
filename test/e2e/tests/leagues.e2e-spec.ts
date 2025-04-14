@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 import { ApiClient } from '../helpers/api-client';
 import { api, seedData } from '../helpers/setup';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('Leagues API (E2E)', () => {
   let leagueId: string;
@@ -58,7 +59,9 @@ describe('Leagues API (E2E)', () => {
     it('should return 404 for non-existent league ID', async () => {
       await loginAsUser();
       
-      const response = await api.get('/leagues/nonexistent-id');
+      // Use a valid UUID format that doesn't exist in the database
+      const nonExistentId = uuidv4();
+      const response = await api.get(`/leagues/${nonExistentId}`);
       
       expect(response.status).toBe(404);
     });
