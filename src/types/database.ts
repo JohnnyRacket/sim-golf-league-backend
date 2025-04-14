@@ -6,6 +6,7 @@ export type TeamStatus = 'active' | 'inactive';
 export type LeagueStatus = 'pending' | 'active' | 'completed';
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
+export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface Database {
   users: UserTable;
@@ -14,6 +15,7 @@ export interface Database {
   leagues: LeagueTable;
   teams: TeamTable;
   team_members: TeamMemberTable;
+  team_join_requests: TeamJoinRequestTable;
   matches: MatchTable;
   stats: StatsTable;
   communications: CommunicationTable;
@@ -115,6 +117,15 @@ export interface CommunicationTable {
   recipient_id: string;
   message: string;
   sent_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface TeamJoinRequestTable {
+  id: string;
+  team_id: string;
+  user_id: string;
+  status: JoinRequestStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 } 

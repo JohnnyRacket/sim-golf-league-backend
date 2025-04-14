@@ -2,84 +2,59 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { TeamStatus, TeamMemberRole } from '../../types/database';
-
-// Schema definitions
-const teamSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    league_id: { type: 'string', format: 'uuid' },
-    name: { type: 'string' },
-    max_members: { type: 'integer', minimum: 1 },
-    status: { type: 'string', enum: ['active', 'inactive'] },
-    created_at: { type: 'string', format: 'date-time' },
-    updated_at: { type: 'string', format: 'date-time' }
-  },
-  required: ['id', 'league_id', 'name', 'max_members', 'status']
-};
-
-const createTeamSchema = {
-  type: 'object',
-  properties: {
-    league_id: { type: 'string', format: 'uuid' },
-    name: { type: 'string' },
-    max_members: { type: 'integer', minimum: 1 },
-    status: { type: 'string', enum: ['active', 'inactive'] }
-  },
-  required: ['league_id', 'name']
-};
-
-const updateTeamSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    max_members: { type: 'integer', minimum: 1 },
-    status: { type: 'string', enum: ['active', 'inactive'] }
-  }
-};
-
-const teamMemberSchema = {
-  type: 'object',
-  properties: {
-    user_id: { type: 'string', format: 'uuid' },
-    role: { type: 'string', enum: ['member'] }
-  },
-  required: ['user_id']
-};
-
-interface CreateTeamBody {
-  league_id: string;
-  name: string;
-  max_members?: number;
-  status?: 'active' | 'inactive';
-}
-
-interface UpdateTeamBody {
-  name?: string;
-  max_members?: number;
-  status?: 'active' | 'inactive';
-}
-
-interface TeamMemberBody {
-  user_id: string;
-  role?: 'member';
-}
+import { 
+  teamSchema, 
+  teamDetailSchema,
+  teamWithMemberCountSchema,
+  createTeamSchema, 
+  updateTeamSchema, 
+  teamMemberBodySchema,
+  joinRequestBodySchema,
+  memberRoleUpdateSchema,
+  joinRequestSchema,
+  teamIdParamSchema,
+  teamMemberIdParamSchema,
+  joinRequestIdParamSchema,
+  errorResponseSchema,
+  successMessageSchema,
+  createdTeamResponseSchema,
+  memberResponseSchema,
+  joinRequestResponseSchema,
+  CreateTeamBody,
+  UpdateTeamBody,
+  TeamMemberBody,
+  JoinRequestBody,
+  MemberRoleUpdateBody
+} from './teams.types';
+import { TeamsService } from './teams.service';
 
 export async function teamRoutes(fastify: FastifyInstance) {
+  // Initialize service
+  const teamsService = new TeamsService(db);
+
   // Get all teams
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: { league_id?: string } }>, reply: FastifyReply) => {
+  fastify.get('/', {
+    schema: {
+      description: 'Get all teams with optional league filtering',
+      tags: ['teams'],
+      querystring: {
+        type: 'object',
+        properties: {
+          league_id: { type: 'string', format: 'uuid' }
+        }
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: teamSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ Querystring: { league_id?: string } }>, reply: FastifyReply) => {
     try {
       const { league_id } = request.query;
-      
-      let query = db.selectFrom('teams')
-        .selectAll();
-      
-      if (league_id) {
-        query = query.where('league_id', '=', league_id);
-      }
-      
-      return await query.execute();
+      return await teamsService.getAllTeams(league_id);
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
@@ -87,43 +62,45 @@ export async function teamRoutes(fastify: FastifyInstance) {
   });
 
   // Get teams the current user is part of
-  fastify.get('/my', async (request, reply) => {
+  fastify.get('/my', {
+    schema: {
+      description: 'Get teams the current user is a member of',
+      tags: ['teams'],
+      response: {
+        200: {
+          type: 'array',
+          items: teamWithMemberCountSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const userId = request.user.id.toString();
-      
-      const teams = await db.selectFrom('team_members')
-        .innerJoin('teams', 'teams.id', 'team_members.team_id')
-        .innerJoin('leagues', 'leagues.id', 'teams.league_id')
-        .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .select([
-          'teams.id',
-          'teams.name',
-          'teams.max_members',
-          'teams.status',
-          'team_members.role',
-          'leagues.id as league_id',
-          'leagues.name as league_name',
-          'locations.name as location_name'
-        ])
-        .where('team_members.user_id', '=', userId)
-        .where('team_members.status', '=', 'active')
-        .execute();
-      
-      // For each team, get member count
-      const teamsWithMemberCount = await Promise.all(teams.map(async (team) => {
-        const memberCount = await db.selectFrom('team_members')
-          .select(({ fn }) => fn.count<number>('id').as('count'))
-          .where('team_id', '=', team.id)
-          .where('status', '=', 'active')
-          .executeTakeFirst();
-          
-        return {
-          ...team,
-          member_count: memberCount?.count || 0
-        };
-      }));
-      
-      return teamsWithMemberCount;
+      return await teamsService.getUserTeams(userId);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get join requests for the current user
+  fastify.get('/join-requests/my', {
+    schema: {
+      description: 'Get all join requests for the current user',
+      tags: ['teams'],
+      response: {
+        200: {
+          type: 'array',
+          items: joinRequestSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      return await teamsService.getUserJoinRequests(userId);
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
@@ -131,38 +108,29 @@ export async function teamRoutes(fastify: FastifyInstance) {
   });
 
   // Get team by ID
-  fastify.get('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/:id', {
+    schema: {
+      description: 'Get team by ID with its members',
+      tags: ['teams'],
+      params: teamIdParamSchema,
+      response: {
+        200: teamDetailSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       
-      const team = await db.selectFrom('teams')
-        .selectAll()
-        .where('id', '=', id)
-        .executeTakeFirst();
+      const team = await teamsService.getTeamById(id);
       
       if (!team) {
         reply.code(404).send({ error: 'Team not found' });
         return;
       }
       
-      // Get team members
-      const members = await db.selectFrom('team_members')
-        .innerJoin('users', 'users.id', 'team_members.user_id')
-        .select([
-          'team_members.id',
-          'team_members.user_id',
-          'team_members.role',
-          'team_members.status',
-          'users.username'
-        ])
-        .where('team_id', '=', id)
-        .orderBy('team_members.role')
-        .execute();
-      
-      return {
-        ...team,
-        members
-      };
+      return team;
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
@@ -173,55 +141,38 @@ export async function teamRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: CreateTeamBody }>('/', {
     preHandler: checkRole(['manager']),
     schema: {
+      description: 'Create a new team (manager only)',
+      tags: ['teams'],
       body: createTeamSchema,
       response: {
-        201: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            id: { type: 'string', format: 'uuid' }
-          }
-        }
+        201: createdTeamResponseSchema,
+        403: errorResponseSchema,
+        500: errorResponseSchema
       }
     }
   }, async (request, reply) => {
     try {
       const { league_id, name, max_members = 6, status = 'active' } = request.body;
       
-      // Check if league exists and manager has access
-      const league = await db.selectFrom('leagues')
-        .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select(['leagues.id', 'managers.user_id'])
-        .where('leagues.id', '=', league_id)
-        .executeTakeFirst();
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(league_id, request.user.id.toString());
       
-      if (!league) {
-        reply.code(404).send({ error: 'League not found' });
-        return;
-      }
-      
-      if (league.user_id.toString() !== request.user.id.toString()) {
+      if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to create teams in this league' });
         return;
       }
       
-      // Create team with new UUID
-      const teamId = uuidv4();
+      // Create team
+      const team = await teamsService.createTeam({
+        league_id,
+        name,
+        max_members,
+        status
+      });
       
-      await db.insertInto('teams')
-        .values({
-          id: teamId,
-          league_id,
-          name,
-          max_members,
-          status: status as TeamStatus
-        })
-        .execute();
-      
-      reply.code(201).send({
-        message: 'Team created successfully',
-        id: teamId
+      reply.code(201).send({ 
+        message: 'Team created successfully', 
+        id: team.id 
       });
     } catch (error) {
       request.log.error(error);
@@ -229,48 +180,49 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Update team
+  // Update team (managers only)
   fastify.put<{ Params: { id: string }; Body: UpdateTeamBody }>('/:id', {
     preHandler: checkRole(['manager']),
     schema: {
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        },
-        required: ['id']
-      },
-      body: updateTeamSchema
+      description: 'Update a team (manager only)',
+      tags: ['teams'],
+      params: teamIdParamSchema,
+      body: updateTeamSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
     }
   }, async (request, reply) => {
     try {
       const { id } = request.params;
       const updateData = request.body;
       
-      // Check if team exists and manager has access
-      const team = await db.selectFrom('teams')
-        .innerJoin('leagues', 'leagues.id', 'teams.league_id')
-        .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select(['teams.id', 'managers.user_id'])
-        .where('teams.id', '=', id)
-        .executeTakeFirst();
+      // Get team to check league
+      const team = await teamsService.getTeamById(id);
       
       if (!team) {
         reply.code(404).send({ error: 'Team not found' });
         return;
       }
       
-      if (team.user_id.toString() !== request.user.id.toString()) {
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      
+      if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to update this team' });
         return;
       }
       
       // Update team
-      await db.updateTable('teams')
-        .set(updateData)
-        .where('id', '=', id)
-        .execute();
+      const updatedTeam = await teamsService.updateTeam(id, updateData);
+      
+      if (!updatedTeam) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
       
       reply.send({ message: 'Team updated successfully' });
     } catch (error) {
@@ -279,100 +231,62 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Add member to team
+  // Add member to team (managers only)
   fastify.post<{ Params: { id: string }; Body: TeamMemberBody }>('/:id/members', {
     preHandler: checkRole(['manager']),
     schema: {
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        },
-        required: ['id']
-      },
-      body: teamMemberSchema
+      description: 'Add a member to a team (manager only)',
+      tags: ['teams'],
+      params: teamIdParamSchema,
+      body: teamMemberBodySchema,
+      response: {
+        201: memberResponseSchema,
+        400: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
     }
   }, async (request, reply) => {
     try {
-      const { id } = request.params;
-      const { user_id } = request.body;
+      const { id: teamId } = request.params;
+      const { user_id, role = 'member' } = request.body;
       
-      // Check if team exists
-      const team = await db.selectFrom('teams')
-        .select(['id', 'max_members'])
-        .where('id', '=', id)
-        .executeTakeFirst();
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
       
       if (!team) {
         reply.code(404).send({ error: 'Team not found' });
         return;
       }
       
-      // Check if user exists
-      const user = await db.selectFrom('users')
-        .select('id')
-        .where('id', '=', user_id)
-        .executeTakeFirst();
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
       
-      if (!user) {
-        reply.code(404).send({ error: 'User not found' });
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to add members to this team' });
         return;
       }
       
-      // Check if member already exists in this team
-      const existingMember = await db.selectFrom('team_members')
-        .select(['id', 'status'])
-        .where('team_id', '=', id)
-        .where('user_id', '=', user_id)
-        .executeTakeFirst();
+      // Check if team has available spots
+      const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
       
-      if (existingMember) {
-        if (existingMember.status === 'active') {
-          reply.code(400).send({ error: 'User is already a member of this team' });
-          return;
-        } else {
-          // Reactivate inactive member
-          await db.updateTable('team_members')
-            .set({ status: 'active' as TeamStatus })
-            .where('id', '=', existingMember.id)
-            .execute();
-          
-          reply.code(200).send({
-            message: 'Team member reactivated successfully',
-            id: existingMember.id
-          });
-          return;
-        }
-      }
-      
-      // Check team member count against max_members
-      const memberCount = await db.selectFrom('team_members')
-        .select(({ fn }) => fn.count<number>('id').as('count'))
-        .where('team_id', '=', id)
-        .where('status', '=', 'active')
-        .executeTakeFirst();
-      
-      if ((memberCount?.count || 0) >= team.max_members) {
-        reply.code(400).send({ error: 'Team has reached maximum member count' });
+      if (!hasAvailableSpots) {
+        reply.code(400).send({ error: 'Team is at maximum capacity' });
         return;
       }
       
-      // Add member to team
-      const memberId = uuidv4();
+      // Add member
+      const member = await teamsService.addTeamMember(teamId, user_id, role);
       
-      await db.insertInto('team_members')
-        .values({
-          id: memberId,
-          team_id: id,
-          user_id,
-          role: 'member' as TeamMemberRole,
-          status: 'active' as TeamStatus
-        })
-        .execute();
+      if (!member) {
+        reply.code(400).send({ error: 'User is already a member of this team' });
+        return;
+      }
       
-      reply.code(201).send({
-        message: 'Team member added successfully',
-        id: memberId
+      reply.code(201).send({ 
+        message: 'Member added successfully',
+        member
       });
     } catch (error) {
       request.log.error(error);
@@ -380,41 +294,346 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Remove team member
-  fastify.delete<{ Params: { id: string; member_id: string } }>('/:id/members/:member_id', async (request, reply) => {
+  // Update team member role (managers only)
+  fastify.put<{ Params: { id: string; memberId: string }; Body: MemberRoleUpdateBody }>('/:id/members/:memberId', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Update team member role (manager only)',
+      tags: ['teams'],
+      params: teamMemberIdParamSchema,
+      body: memberRoleUpdateSchema,
+      response: {
+        200: memberResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
-      const { id, member_id } = request.params;
+      const { id: teamId, memberId } = request.params;
+      const { role } = request.body;
       
-      // Check if team exists
-      const team = await db.selectFrom('teams')
-        .select(['id'])
-        .where('id', '=', id)
-        .executeTakeFirst();
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
       
       if (!team) {
         reply.code(404).send({ error: 'Team not found' });
         return;
       }
       
-      // Check if member exists
-      const member = await db.selectFrom('team_members')
-        .select(['id', 'status'])
-        .where('id', '=', member_id)
-        .where('team_id', '=', id)
-        .executeTakeFirst();
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
       
-      if (!member) {
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to update this team member' });
+        return;
+      }
+      
+      // Update member
+      const updatedMember = await teamsService.updateTeamMember(memberId, role);
+      
+      if (!updatedMember) {
         reply.code(404).send({ error: 'Team member not found' });
         return;
       }
       
-      // Mark member as inactive (soft delete)
-      await db.updateTable('team_members')
-        .set({ status: 'inactive' as TeamStatus })
-        .where('id', '=', member_id)
-        .execute();
+      reply.send({ 
+        message: 'Member updated successfully',
+        member: updatedMember
+      });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Remove member from team (managers only)
+  fastify.delete<{ Params: { id: string; memberId: string } }>('/:id/members/:memberId', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Remove a member from a team (manager only)',
+      tags: ['teams'],
+      params: teamMemberIdParamSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id: teamId, memberId } = request.params;
       
-      reply.send({ message: 'Team member removed successfully' });
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
+      
+      if (!team) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
+      
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to remove members from this team' });
+        return;
+      }
+      
+      // Remove member
+      const removed = await teamsService.removeTeamMember(memberId);
+      
+      if (!removed) {
+        reply.code(404).send({ error: 'Team member not found' });
+        return;
+      }
+      
+      reply.send({ message: 'Member removed successfully' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Request to join a team
+  fastify.post<{ Body: JoinRequestBody }>('/join', {
+    schema: {
+      description: 'Request to join a team',
+      tags: ['teams'],
+      body: joinRequestBodySchema,
+      response: {
+        201: joinRequestResponseSchema,
+        400: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { team_id } = request.body;
+      const userId = request.user.id.toString();
+      
+      // Check if team exists
+      const team = await teamsService.getTeamById(team_id);
+      
+      if (!team) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
+      
+      // Check if team has available spots
+      const hasAvailableSpots = await teamsService.hasAvailableSpots(team_id);
+      
+      if (!hasAvailableSpots) {
+        reply.code(400).send({ error: 'Team is at maximum capacity' });
+        return;
+      }
+      
+      // Create join request
+      const requestResult = await teamsService.createJoinRequest(team_id, userId);
+      
+      reply.code(201).send({
+        message: 'Join request submitted successfully',
+        request_id: requestResult.id
+      });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get join requests for a team (managers only)
+  fastify.get<{ Params: { id: string } }>('/:id/join-requests', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Get join requests for a team (manager only)',
+      tags: ['teams'],
+      params: teamIdParamSchema,
+      response: {
+        200: {
+          type: 'array',
+          items: joinRequestSchema
+        },
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id: teamId } = request.params;
+      
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
+      
+      if (!team) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
+      
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to view join requests for this team' });
+        return;
+      }
+      
+      // Get join requests
+      const requests = await teamsService.getTeamJoinRequests(teamId);
+      
+      return requests;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Approve a join request (managers only)
+  fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/approve', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Approve a join request (manager only)',
+      tags: ['teams'],
+      params: joinRequestIdParamSchema,
+      response: {
+        200: memberResponseSchema,
+        400: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id: teamId, requestId } = request.params;
+      
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
+      
+      if (!team) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
+      
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to approve join requests for this team' });
+        return;
+      }
+      
+      // Check if team has available spots
+      const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
+      
+      if (!hasAvailableSpots) {
+        reply.code(400).send({ error: 'Team is at maximum capacity' });
+        return;
+      }
+      
+      // Approve request
+      const member = await teamsService.approveJoinRequest(requestId);
+      
+      if (!member) {
+        reply.code(404).send({ error: 'Join request not found or already processed' });
+        return;
+      }
+      
+      reply.send({
+        message: 'Join request approved',
+        member
+      });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Reject a join request (managers only)
+  fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/reject', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Reject a join request (manager only)',
+      tags: ['teams'],
+      params: joinRequestIdParamSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id: teamId, requestId } = request.params;
+      
+      // Get team to check league
+      const team = await teamsService.getTeamById(teamId);
+      
+      if (!team) {
+        reply.code(404).send({ error: 'Team not found' });
+        return;
+      }
+      
+      // Check if user is authorized to manage this league
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to reject join requests for this team' });
+        return;
+      }
+      
+      // Reject request
+      const rejected = await teamsService.rejectJoinRequest(requestId);
+      
+      if (!rejected) {
+        reply.code(404).send({ error: 'Join request not found or already processed' });
+        return;
+      }
+      
+      reply.send({ message: 'Join request rejected' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Cancel own join request
+  fastify.post<{ Params: { requestId: string } }>('/join-requests/:requestId/cancel', {
+    schema: {
+      description: 'Cancel your own pending join request',
+      tags: ['teams'],
+      params: {
+        type: 'object',
+        properties: {
+          requestId: { type: 'string', format: 'uuid' }
+        },
+        required: ['requestId']
+      },
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { requestId } = request.params;
+      const userId = request.user.id.toString();
+      
+      // Cancel request
+      const cancelled = await teamsService.cancelJoinRequest(requestId, userId);
+      
+      if (!cancelled) {
+        reply.code(404).send({ error: 'Join request not found or already processed' });
+        return;
+      }
+      
+      reply.send({ message: 'Join request cancelled' });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });

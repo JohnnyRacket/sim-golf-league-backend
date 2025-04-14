@@ -6,14 +6,23 @@ import { MatchStatus, MatchTable } from '../../types/database';
 import { MatchesService } from './matches.service';
 import {
   matchSchema,
+  enhancedMatchSchema,
+  matchWithTeamsSchema,
+  upcomingMatchSchema,
+  userMatchSummarySchema,
   createMatchSchema,
   updateMatchSchema,
   matchGameSchema,
-  scoreUpdateSchema,
+  submitMatchResultsSchema,
+  matchParamsSchema,
+  errorResponseSchema,
+  successMessageSchema,
+  createdMatchResponseSchema,
   CreateMatchBody,
   UpdateMatchBody,
   MatchGameBody,
-  ScoreUpdateBody
+  ScoreUpdateBody,
+  SubmitMatchResultsBody
 } from './matches.types';
 
 export async function matchRoutes(fastify: FastifyInstance) {
@@ -23,7 +32,19 @@ export async function matchRoutes(fastify: FastifyInstance) {
   // GET ENDPOINTS
 
   // Get upcoming matches for current user
-  fastify.get('/upcoming', async (request, reply) => {
+  fastify.get('/upcoming', {
+    schema: {
+      description: 'Get upcoming matches for the current user',
+      tags: ['matches'],
+      response: {
+        200: {
+          type: 'array',
+          items: upcomingMatchSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const userId = request.user.id.toString();
       
@@ -55,7 +76,31 @@ export async function matchRoutes(fastify: FastifyInstance) {
   });
 
   // Get all matches with filtering options
-  fastify.get('/', async (request: FastifyRequest<{ 
+  fastify.get('/', {
+    schema: {
+      description: 'Get all matches with optional filtering',
+      tags: ['matches'],
+      querystring: {
+        type: 'object',
+        properties: {
+          league_id: { type: 'string', format: 'uuid' },
+          team_id: { type: 'string', format: 'uuid' },
+          status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
+          from_date: { type: 'string', format: 'date-time' },
+          to_date: { type: 'string', format: 'date-time' },
+          user_id: { type: 'string', format: 'uuid' },
+          include_stats: { type: 'boolean' }
+        }
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: matchWithTeamsSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ 
     Querystring: { 
       league_id?: string; 
       team_id?: string;
@@ -102,7 +147,18 @@ export async function matchRoutes(fastify: FastifyInstance) {
   });
 
   // Get match by ID with games
-  fastify.get('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/:id', {
+    schema: {
+      description: 'Get match by ID with details',
+      tags: ['matches'],
+      params: matchParamsSchema,
+      response: {
+        200: enhancedMatchSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       
@@ -128,7 +184,12 @@ export async function matchRoutes(fastify: FastifyInstance) {
         league_id: match.league_id,
         league_name: match.league?.name || 'Unknown',
         simulator_settings: match.simulator_settings,
-        player_details: match.player_details || {}
+        player_details: match.player_details || {},
+        home_team: match.home_team,
+        away_team: match.away_team,
+        league: match.league,
+        created_at: match.created_at,
+        updated_at: match.updated_at
       };
       
       return matchWithDetails;
@@ -139,7 +200,26 @@ export async function matchRoutes(fastify: FastifyInstance) {
   });
 
   // Get user's match summary by league
-  fastify.get('/user/:user_id/summary', async (request: FastifyRequest<{
+  fastify.get('/user/:user_id/summary', {
+    schema: {
+      description: 'Get match summary for a specific user',
+      tags: ['matches'],
+      params: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', format: 'uuid' }
+        },
+        required: ['user_id']
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: userMatchSummarySchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{
     Params: { user_id: string }
   }>, reply: FastifyReply) => {
     const { user_id } = request.params;
@@ -155,7 +235,19 @@ export async function matchRoutes(fastify: FastifyInstance) {
   });
   
   // Current user's match summary - shorthand endpoint
-  fastify.get('/me/summary', async (request, reply) => {
+  fastify.get('/me/summary', {
+    schema: {
+      description: 'Get match summary for the current user',
+      tags: ['matches'],
+      response: {
+        200: {
+          type: 'array',
+          items: userMatchSummarySchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const userId = request.user.id.toString();
       
@@ -174,7 +266,16 @@ export async function matchRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: CreateMatchBody }>('/', {
     preHandler: checkRole(['manager']),
     schema: {
-      body: createMatchSchema
+      description: 'Create a new match (manager only)',
+      tags: ['matches'],
+      body: createMatchSchema,
+      response: {
+        201: createdMatchResponseSchema,
+        400: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
     }
   }, async (request, reply) => {
     try {
@@ -235,14 +336,16 @@ export async function matchRoutes(fastify: FastifyInstance) {
   fastify.put<{ Params: { id: string }; Body: UpdateMatchBody }>('/:id', {
     preHandler: checkRole(['manager']),
     schema: {
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        },
-        required: ['id']
-      },
-      body: updateMatchSchema
+      description: 'Update an existing match (manager only)',
+      tags: ['matches'],
+      params: matchParamsSchema,
+      body: updateMatchSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
     }
   }, async (request, reply) => {
     try {
@@ -284,14 +387,20 @@ export async function matchRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string }; Body: MatchGameBody }>('/:id/games', {
     preHandler: checkRole(['manager']),
     schema: {
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' }
+      description: 'Add a game to a match (DEPRECATED)',
+      tags: ['matches'],
+      params: matchParamsSchema,
+      body: matchGameSchema,
+      response: {
+        410: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' }
+          }
         },
-        required: ['id']
-      },
-      body: matchGameSchema
+        500: errorResponseSchema
+      }
     }
   }, async (request, reply) => {
     try {
@@ -308,35 +417,18 @@ export async function matchRoutes(fastify: FastifyInstance) {
   // FUNCTIONAL ENDPOINTS
 
   // Submit match result (admin or manager only)
-  fastify.put<{ Params: { id: string }; Body: { status: string; games: any[] } }>('/:id/result', {
+  fastify.put<{ Params: { id: string }; Body: SubmitMatchResultsBody }>('/:id/result', {
     preHandler: checkRole(['admin', 'manager']),
     schema: {
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        },
-        required: ['id']
-      },
-      body: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['in_progress', 'completed', 'cancelled'] },
-          games: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                home_player_id: { type: 'string', format: 'uuid' },
-                away_player_id: { type: 'string', format: 'uuid' },
-                home_score: { type: 'integer', minimum: 0 },
-                away_score: { type: 'integer', minimum: 0 }
-              },
-              required: ['home_player_id', 'away_player_id', 'home_score', 'away_score']
-            }
-          }
-        },
-        required: ['status', 'games']
+      description: 'Submit match results (admin or manager only)',
+      tags: ['matches'],
+      params: matchParamsSchema,
+      body: submitMatchResultsSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
       }
     }
   }, async (request, reply) => {

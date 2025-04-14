@@ -1,17 +1,80 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
-import { sql } from 'kysely';
+import { UsersService } from './users.service';
+import { 
+  userProfileSchema,
+  updateUserSchema,
+  userDashboardSchema,
+  UpdateUserBody,
+  userListSchema,
+  userBasicSchema,
+  userIdParamsSchema,
+  errorResponseSchema,
+  successMessageSchema
+} from './users.types';
 
 export async function userRoutes(fastify: FastifyInstance) {
+  // Initialize service
+  const usersService = new UsersService(db);
+
   // Get all users (admin/manager only)
   fastify.get('/', {
-    preHandler: checkRole(['manager'])
+    preHandler: checkRole(['manager']),
+    schema: {
+      response: {
+        200: userListSchema,
+        500: errorResponseSchema
+      }
+    }
   }, async (request, reply) => {
     try {
-      return await db.selectFrom('users')
-        .select(['id', 'username', 'email', 'created_at', 'updated_at'])
-        .execute();
+      return await usersService.getAllUsers();
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get current user profile (self)
+  fastify.get('/me', {
+    schema: {
+      response: {
+        200: userProfileSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      
+      const profile = await usersService.getCurrentUserProfile(userId);
+      
+      if (!profile) {
+        reply.code(404).send({ error: 'User not found' });
+        return;
+      }
+      
+      return profile;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get user dashboard data
+  fastify.get('/me/dashboard', {
+    schema: {
+      response: {
+        200: userDashboardSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      return await usersService.getUserDashboard(userId);
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
@@ -19,7 +82,17 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // Get user by ID (admin/manager or self only)
-  fastify.get('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/:id', {
+    schema: {
+      params: userIdParamsSchema,
+      response: {
+        200: userBasicSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
 
     try {
@@ -29,10 +102,7 @@ export async function userRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const user = await db.selectFrom('users')
-        .select(['id', 'username', 'email', 'created_at', 'updated_at'])
-        .where('id', '=', id)
-        .executeTakeFirst();
+      const user = await usersService.getUserById(id);
       
       if (!user) {
         reply.code(404).send({ error: 'User not found' });
@@ -46,156 +116,19 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get current user profile (self)
-  fastify.get('/me', async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      
-      const user = await db.selectFrom('users')
-        .select(['id', 'username', 'email', 'role', 'created_at', 'updated_at'])
-        .where('id', '=', userId)
-        .executeTakeFirst();
-      
-      if (!user) {
-        reply.code(404).send({ error: 'User not found' });
-        return;
-      }
-      
-      // Check if user is a manager
-      const manager = await db.selectFrom('managers')
-        .select(['id', 'name'])
-        .where('user_id', '=', userId)
-        .executeTakeFirst();
-      
-      return {
-        ...user,
-        is_manager: !!manager,
-        manager_details: manager || null
-      };
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
-  });
-
-  // Get user dashboard data
-  fastify.get('/me/dashboard', async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      
-      // Get user's teams
-      const teams = await db.selectFrom('team_members')
-        .innerJoin('teams', 'teams.id', 'team_members.team_id')
-        .innerJoin('leagues', 'leagues.id', 'teams.league_id')
-        .select([
-          'teams.id as team_id',
-          'teams.name as team_name',
-          'team_members.role as member_role',
-          'leagues.id as league_id',
-          'leagues.name as league_name',
-          'leagues.status as league_status'
-        ])
-        .where('team_members.user_id', '=', userId)
-        .where('team_members.status', '=', 'active')
-        .execute();
-      
-      // Get upcoming matches
-      const upcomingMatches = await db.selectFrom('matches')
-        .innerJoin('teams as home_team', 'home_team.id', 'matches.home_team_id')
-        .innerJoin('teams as away_team', 'away_team.id', 'matches.away_team_id')
-        .leftJoin('team_members', eb => 
-          eb.on(eb2 => eb2.or([
-            eb2('team_members.team_id', '=', eb2.ref('home_team.id')),
-            eb2('team_members.team_id', '=', eb2.ref('away_team.id'))
-          ]))
-        )
-        .select([
-          'matches.id',
-          'matches.match_date',
-          'matches.status',
-          'home_team.id as home_team_id',
-          'home_team.name as home_team_name',
-          'away_team.id as away_team_id',
-          'away_team.name as away_team_name'
-        ])
-        .where('team_members.user_id', '=', userId)
-        .where('matches.status', '=', 'scheduled')
-        .where('matches.match_date', '>', new Date())
-        .orderBy('matches.match_date', 'asc')
-        .limit(5)
-        .execute();
-      
-      // Get recent match results
-      const recentMatches = await db.selectFrom('matches')
-        .innerJoin('teams as home_team', 'home_team.id', 'matches.home_team_id')
-        .innerJoin('teams as away_team', 'away_team.id', 'matches.away_team_id')
-        .leftJoin('team_members', eb => 
-          eb.on(eb2 => eb2.or([
-            eb2('team_members.team_id', '=', eb2.ref('home_team.id')),
-            eb2('team_members.team_id', '=', eb2.ref('away_team.id'))
-          ]))
-        )
-        .select([
-          'matches.id',
-          'matches.match_date',
-          'matches.status',
-          'home_team.id as home_team_id',
-          'home_team.name as home_team_name',
-          'away_team.id as away_team_id',
-          'away_team.name as away_team_name',
-          'matches.home_team_score',
-          'matches.away_team_score'
-        ])
-        .where('team_members.user_id', '=', userId)
-        .where('matches.status', '=', 'completed')
-        .groupBy([
-          'matches.id',
-          'matches.match_date',
-          'matches.status',
-          'home_team.id',
-          'home_team.name',
-          'away_team.id',
-          'away_team.name',
-          'matches.home_team_score',
-          'matches.away_team_score'
-        ])
-        .orderBy('matches.match_date', 'desc')
-        .limit(5)
-        .execute();
-      
-      // Get player stats summary
-      const stats = await db.selectFrom('stats')
-        .select([
-          'matches_played',
-          'matches_won',
-          'average_score',
-          'handicap'
-        ])
-        .where('user_id', '=', userId)
-        .executeTakeFirst() || { 
-          matches_played: 0, 
-          matches_won: 0, 
-          average_score: 0, 
-          handicap: 0 
-        };
-      
-      return {
-        teams,
-        upcomingMatches,
-        recentMatches,
-        stats
-      };
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
-  });
-
   // Update user (self only)
-  fastify.put('/:id', async (request: FastifyRequest<{
-    Params: { id: string },
-    Body: { username?: string, email?: string }
-  }>, reply: FastifyReply) => {
+  fastify.put<{ Params: { id: string }; Body: UpdateUserBody }>('/:id', {
+    schema: {
+      params: userIdParamsSchema,
+      body: updateUserSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const { id } = request.params;
 
     try {
@@ -206,13 +139,9 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
 
       const updateData = request.body;
-      
-      const result = await db.updateTable('users')
-        .set(updateData)
-        .where('id', '=', id)
-        .executeTakeFirst();
+      const updated = await usersService.updateUser(id, updateData);
 
-      if (!result || result.numUpdatedRows === BigInt(0)) {
+      if (!updated) {
         reply.code(404).send({ error: 'User not found' });
         return;
       }
