@@ -2,12 +2,13 @@ import { db } from '../../../src/db';
 import { seed } from './seeder';
 import { beforeAll, afterEach, afterAll } from '@jest/globals';
 import { ApiClient } from './api-client';
+import { SeedData } from './types';
 
 // Test setup config
 export const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 // Will be populated during setup
-export let seedData: any;
+export let seedData: SeedData;
 export let api: ApiClient;
 
 beforeAll(async () => {

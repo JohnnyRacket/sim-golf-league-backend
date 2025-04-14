@@ -1,7 +1,7 @@
 import { Generated } from 'kysely';
 
 export type UserRole = 'user' | 'admin';
-export type TeamMemberRole = 'captain' | 'member';
+export type TeamMemberRole = 'member';
 export type TeamStatus = 'active' | 'inactive';
 export type LeagueStatus = 'pending' | 'active' | 'completed';
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
@@ -15,7 +15,6 @@ export interface Database {
   teams: TeamTable;
   team_members: TeamMemberTable;
   matches: MatchTable;
-  match_games: MatchGameTable;
   stats: StatsTable;
   communications: CommunicationTable;
 }
@@ -49,11 +48,13 @@ export interface LocationTable {
 
 export interface LeagueTable {
   id: string;
-  location_id: string;
   name: string;
+  location_id: string;
   start_date: Date;
   end_date: Date;
+  description?: string;
   max_teams: number;
+  simulator_settings?: Record<string, any>;
   status: LeagueStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -63,7 +64,6 @@ export interface TeamTable {
   id: string;
   league_id: string;
   name: string;
-  captain_id: string;
   max_members: number;
   status: TeamStatus;
   created_at: Generated<Date>;
@@ -86,20 +86,11 @@ export interface MatchTable {
   home_team_id: string;
   away_team_id: string;
   match_date: Date;
+  home_team_score: number;
+  away_team_score: number;
+  player_details?: Record<string, any>;
+  simulator_settings?: Record<string, any>;
   status: MatchStatus;
-  created_at: Generated<Date>;
-  updated_at: Generated<Date>;
-}
-
-export interface MatchGameTable {
-  id: string;
-  match_id: string;
-  game_number: number;
-  home_player_id: string;
-  away_player_id: string;
-  home_score: number | null;
-  away_score: number | null;
-  status: MatchGameStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

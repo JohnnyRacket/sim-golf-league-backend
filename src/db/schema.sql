@@ -3,7 +3,7 @@
 
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('user', 'admin');
-CREATE TYPE team_member_role AS ENUM ('captain', 'member');
+CREATE TYPE team_member_role AS ENUM ('member');
 CREATE TYPE team_status AS ENUM ('active', 'inactive');
 CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed');
 CREATE TYPE match_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled');
@@ -43,12 +43,14 @@ CREATE TABLE locations (
 -- Create leagues table
 CREATE TABLE leagues (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
     location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    max_teams INTEGER NOT NULL,
-    status league_status NOT NULL DEFAULT 'pending',
+    description TEXT,
+    max_teams INTEGER DEFAULT 8,
+    simulator_settings JSONB DEFAULT NULL,
+    status league_status NOT NULL DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -57,7 +59,6 @@ CREATE TABLE leagues (
 CREATE TABLE teams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
-    captain_id UUID NOT NULL REFERENCES users(id),
     name VARCHAR(255) NOT NULL,
     max_members INTEGER NOT NULL,
     status team_status NOT NULL DEFAULT 'active',
@@ -84,26 +85,39 @@ CREATE TABLE matches (
     home_team_id UUID NOT NULL REFERENCES teams(id),
     away_team_id UUID NOT NULL REFERENCES teams(id),
     match_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    home_team_score INTEGER DEFAULT 0,
+    away_team_score INTEGER DEFAULT 0,
+    player_details JSONB DEFAULT NULL,
+    simulator_settings JSONB DEFAULT NULL,
     status match_status NOT NULL DEFAULT 'scheduled',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CHECK (home_team_id != away_team_id)
 );
 
--- Create match_games table
-CREATE TABLE match_games (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    home_player_id UUID NOT NULL REFERENCES users(id),
-    away_player_id UUID NOT NULL REFERENCES users(id),
-    game_number INTEGER NOT NULL,
-    home_score INTEGER,
-    away_score INTEGER,
-    status match_game_status NOT NULL DEFAULT 'pending',
+-- Create stats table with proper UUID references
+CREATE TABLE stats (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id),
+    league_id UUID NOT NULL REFERENCES leagues(id),
+    games_played INTEGER NOT NULL DEFAULT 0,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_score INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CHECK (home_player_id != away_player_id),
-    UNIQUE(match_id, game_number)
+    UNIQUE(user_id, league_id)
+);
+
+-- Create communications table with PostgreSQL syntax
+CREATE TABLE communications (
+    id SERIAL PRIMARY KEY,
+    sender_id UUID NOT NULL REFERENCES users(id),
+    recipient_type recipient_type NOT NULL,
+    recipient_id UUID NOT NULL,
+    message TEXT NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create triggers for updated_at timestamps
@@ -150,41 +164,11 @@ CREATE TRIGGER update_matches_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_match_games_updated_at
-    BEFORE UPDATE ON match_games
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Create stats table with proper UUID references
-CREATE TABLE stats (
-    id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id),
-    league_id UUID NOT NULL REFERENCES leagues(id),
-    games_played INTEGER NOT NULL DEFAULT 0,
-    games_won INTEGER NOT NULL DEFAULT 0,
-    total_score INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, league_id)
-);
-
 -- Create trigger for stats table
 CREATE TRIGGER update_stats_updated_at
     BEFORE UPDATE ON stats
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
--- Create communications table with PostgreSQL syntax
-CREATE TABLE communications (
-    id SERIAL PRIMARY KEY,
-    sender_id UUID NOT NULL REFERENCES users(id),
-    recipient_type recipient_type NOT NULL,
-    recipient_id UUID NOT NULL,
-    message TEXT NOT NULL,
-    sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 -- Create trigger for communications table
 CREATE TRIGGER update_communications_updated_at

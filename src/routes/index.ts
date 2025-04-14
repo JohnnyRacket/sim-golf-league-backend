@@ -2,7 +2,9 @@ import { FastifyInstance } from 'fastify';
 import { authRoutes } from './auth/auth.api';
 import { userRoutes } from './users/users.api';
 import { leagueRoutes } from './leagues/leagues.api';
-import { matchHistoryRoutes } from './match-history/match-history.api';
+import { teamRoutes } from './teams/teams.api';
+import { locationRoutes } from './locations/locations.api';
+import { matchRoutes } from './matches/matches.api';
 import { authenticate } from '../middleware/auth';
 
 export async function registerRoutes(fastify: FastifyInstance) {
@@ -17,6 +19,8 @@ export async function registerRoutes(fastify: FastifyInstance) {
     // Register protected entity routes
     protectedRoutes.register(userRoutes, { prefix: '/users' });
     protectedRoutes.register(leagueRoutes, { prefix: '/leagues' });
-    protectedRoutes.register(matchHistoryRoutes, { prefix: '/match-history' });
+    protectedRoutes.register(teamRoutes, { prefix: '/teams' });
+    protectedRoutes.register(matchRoutes, { prefix: '/matches' });
+    protectedRoutes.register(locationRoutes, { prefix: '/locations' });
   });
 } 

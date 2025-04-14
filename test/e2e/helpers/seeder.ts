@@ -9,28 +9,16 @@ import {
   MatchStatus, 
   MatchGameStatus 
 } from '../../../src/types/database';
+import { SeedData, SeedUser, SeedManager, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch, SeedMatchGame } from './types';
 
-interface SeedResult {
-  users: any[];
-  managers: any[];
-  locations: any[];
-  leagues: any[];
-  teams: any[];
-  teamMembers: any[];
-  matches: any[];
-  matchGames: any[];
-  tokens: {
-    admin: string;
-    user: string;
-    captain: string;
-  };
-}
+// Use the SeedData interface directly
+type SeedResult = SeedData;
 
-export async function seed(): Promise<SeedResult> {
+export async function seed(): Promise<SeedData> {
   console.log('Seeding database for E2E tests...');
   
   // Store all created entities
-  const result: SeedResult = {
+  const result: SeedData = {
     users: [],
     managers: [],
     locations: [],
@@ -41,8 +29,7 @@ export async function seed(): Promise<SeedResult> {
     matchGames: [],
     tokens: {
       admin: '',
-      user: '',
-      captain: ''
+      user: ''
     }
   };
 
@@ -170,7 +157,6 @@ export async function seed(): Promise<SeedResult> {
       .values({
         id: team1Id,
         league_id: leagueId,
-        captain_id: user1Id,
         name: 'Eagles',
         max_members: 4,
         status: 'active' as TeamStatus
@@ -180,7 +166,6 @@ export async function seed(): Promise<SeedResult> {
     result.teams.push({
       id: team1Id,
       league_id: leagueId,
-      captain_id: user1Id,
       name: 'Eagles',
       max_members: 4,
       status: 'active'
@@ -191,7 +176,6 @@ export async function seed(): Promise<SeedResult> {
       .values({
         id: team2Id,
         league_id: leagueId,
-        captain_id: user2Id,
         name: 'Birdies',
         max_members: 4,
         status: 'active' as TeamStatus
@@ -201,7 +185,6 @@ export async function seed(): Promise<SeedResult> {
     result.teams.push({
       id: team2Id,
       league_id: leagueId,
-      captain_id: user2Id,
       name: 'Birdies',
       max_members: 4,
       status: 'active'
@@ -214,7 +197,7 @@ export async function seed(): Promise<SeedResult> {
         id: member1Id,
         team_id: team1Id,
         user_id: user1Id,
-        role: 'captain' as TeamMemberRole,
+        role: 'member' as TeamMemberRole,
         status: 'active' as TeamStatus
       })
       .execute();
@@ -223,7 +206,7 @@ export async function seed(): Promise<SeedResult> {
       id: member1Id,
       team_id: team1Id,
       user_id: user1Id,
-      role: 'captain',
+      role: 'member',
       status: 'active'
     });
     
@@ -233,7 +216,7 @@ export async function seed(): Promise<SeedResult> {
         id: member2Id,
         team_id: team2Id,
         user_id: user2Id,
-        role: 'captain' as TeamMemberRole,
+        role: 'member' as TeamMemberRole,
         status: 'active' as TeamStatus
       })
       .execute();
@@ -242,7 +225,7 @@ export async function seed(): Promise<SeedResult> {
       id: member2Id,
       team_id: team2Id,
       user_id: user2Id,
-      role: 'captain',
+      role: 'member',
       status: 'active'
     });
     
@@ -312,13 +295,6 @@ export async function seed(): Promise<SeedResult> {
         username: 'user1',
         email: 'user1@example.com',
         roles: ['user']
-      }, secret, { expiresIn: '1h' }),
-      
-      captain: jwt.sign({ 
-        id: user1Id, 
-        username: 'user1',
-        email: 'user1@example.com',
-        roles: ['user', 'captain']
       }, secret, { expiresIn: '1h' })
     };
     

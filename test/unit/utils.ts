@@ -74,7 +74,7 @@ export async function createTestLeague(locationId: string, overrides: Partial<{
 }
 
 // Mock teams
-export async function createTestTeam(leagueId: string, captainId: string, overrides: Partial<{
+export async function createTestTeam(leagueId: string, overrides: Partial<{
   name: string;
   max_members: number;
   status: TeamStatus;
@@ -82,7 +82,6 @@ export async function createTestTeam(leagueId: string, captainId: string, overri
   return {
     id: uuidv4(),
     league_id: leagueId,
-    captain_id: captainId,
     name: overrides.name || 'Test Team',
     max_members: overrides.max_members || 4,
     status: overrides.status || 'active' as TeamStatus,

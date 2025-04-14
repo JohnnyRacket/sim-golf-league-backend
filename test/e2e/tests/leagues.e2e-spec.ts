@@ -42,6 +42,22 @@ describe('Leagues API (E2E)', () => {
     });
   });
   
+  describe('GET /leagues/my', () => {
+    it('should return leagues the user is participating in', async () => {
+      await loginAsUser();
+      
+      const response = await api.get('/leagues/my');
+      
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.data)).toBe(true);
+      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data[0]).toHaveProperty('id');
+      expect(response.data[0]).toHaveProperty('name');
+      expect(response.data[0]).toHaveProperty('team_id');
+      expect(response.data[0]).toHaveProperty('team_name');
+    });
+  });
+  
   describe('GET /leagues/:id', () => {
     it('should return a specific league by ID', async () => {
       await loginAsUser();
@@ -64,6 +80,54 @@ describe('Leagues API (E2E)', () => {
       const response = await api.get(`/leagues/${nonExistentId}`);
       
       expect(response.status).toBe(404);
+    });
+  });
+  
+  describe('GET /leagues/:id/standings', () => {
+    it('should return league standings', async () => {
+      await loginAsUser();
+      
+      const response = await api.get(`/leagues/${leagueId}/standings`);
+      
+      expect(response.status).toBe(200);
+      expect(response.data).toHaveProperty('league');
+      expect(response.data).toHaveProperty('standings');
+      expect(Array.isArray(response.data.standings)).toBe(true);
+      
+      if (response.data.standings.length > 0) {
+        expect(response.data.standings[0]).toHaveProperty('id');
+        expect(response.data.standings[0]).toHaveProperty('name');
+        expect(response.data.standings[0]).toHaveProperty('matches_played');
+        expect(response.data.standings[0]).toHaveProperty('matches_won');
+        expect(response.data.standings[0]).toHaveProperty('games_won');
+        expect(response.data.standings[0]).toHaveProperty('win_percentage');
+      }
+    });
+  });
+  
+  describe('GET /leagues/:id/members', () => {
+    it('should return league members grouped by team', async () => {
+      await loginAsUser();
+      
+      const response = await api.get(`/leagues/${leagueId}/members`);
+      
+      expect(response.status).toBe(200);
+      expect(response.data).toHaveProperty('league');
+      expect(response.data).toHaveProperty('teams');
+      expect(Array.isArray(response.data.teams)).toBe(true);
+      
+      if (response.data.teams.length > 0) {
+        expect(response.data.teams[0]).toHaveProperty('team_id');
+        expect(response.data.teams[0]).toHaveProperty('team_name');
+        expect(response.data.teams[0]).toHaveProperty('members');
+        expect(Array.isArray(response.data.teams[0].members)).toBe(true);
+        
+        if (response.data.teams[0].members.length > 0) {
+          expect(response.data.teams[0].members[0]).toHaveProperty('user_id');
+          expect(response.data.teams[0].members[0]).toHaveProperty('username');
+          expect(response.data.teams[0].members[0]).toHaveProperty('role');
+        }
+      }
     });
   });
   
@@ -159,5 +223,73 @@ describe('Leagues API (E2E)', () => {
       const getResponse = await api.get(`/leagues/${newLeagueId}`);
       expect(getResponse.status).toBe(404);
     });
+  });
+
+  test('Create and update league with simulator settings', async () => {
+    await loginAsAdmin();
+    
+    // Create a new league with simulator settings
+    const simulatorSettings = {
+      difficulty: 'intermediate',
+      weather: 'random',
+      course: 'Augusta National',
+      defaultWindSpeed: 5,
+      enableHandicaps: true
+    };
+    
+    const createResponse = await api.post('/leagues', {
+      name: 'Simulator Test League',
+      location_id: seedData.locations[0].id,
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+      max_teams: 8,
+      simulator_settings: simulatorSettings
+    });
+    
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.data).toHaveProperty('id');
+    
+    const leagueId = createResponse.data.id;
+    
+    // Verify the league was created with simulator settings
+    const getResponse = await api.get(`/leagues/${leagueId}`);
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.data.simulator_settings).toEqual(simulatorSettings);
+    
+    // Update the league with new simulator settings
+    const updatedSettings = {
+      difficulty: 'hard',
+      weather: 'sunny',
+      course: 'Pebble Beach',
+      defaultWindSpeed: 10,
+      enableHandicaps: false,
+      newSetting: 'example'
+    };
+    
+    const updateResponse = await api.put(`/leagues/${leagueId}`, {
+      simulator_settings: updatedSettings
+    });
+    
+    expect(updateResponse.status).toBe(200);
+    
+    // Verify the update
+    const getUpdatedResponse = await api.get(`/leagues/${leagueId}`);
+    expect(getUpdatedResponse.status).toBe(200);
+    expect(getUpdatedResponse.data.simulator_settings).toEqual(updatedSettings);
+    
+    // Create a match without simulator settings - should inherit from league
+    const matchResponse = await api.post('/matches', {
+      league_id: leagueId,
+      home_team_id: seedData.teams[0].id,
+      away_team_id: seedData.teams[1].id,
+      match_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days from now
+    });
+    
+    expect(matchResponse.status).toBe(201);
+    
+    // Verify the match has the league's simulator settings
+    const getMatchResponse = await api.get(`/matches/${matchResponse.data.id}`);
+    expect(getMatchResponse.status).toBe(200);
+    expect(getMatchResponse.data.simulator_settings).toEqual(updatedSettings);
   });
 }); 

@@ -3,6 +3,7 @@ import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { LeagueStatus } from '../../types/database';
+import { sql } from 'kysely';
 
 // Schema definitions
 const leagueProperties = {
@@ -11,7 +12,12 @@ const leagueProperties = {
   location_id: { type: 'string', format: 'uuid' },
   start_date: { type: 'string', format: 'date-time' },
   end_date: { type: 'string', format: 'date-time' },
+  description: { type: 'string' },
   max_teams: { type: 'integer', minimum: 1 },
+  simulator_settings: { 
+    type: 'object',
+    additionalProperties: true
+  },
   status: { type: 'string', enum: ['active', 'completed', 'pending'] },
   created_at: { type: 'string', format: 'date-time' },
   updated_at: { type: 'string', format: 'date-time' }
@@ -30,7 +36,12 @@ const createLeagueSchema = {
     location_id: { type: 'string', format: 'uuid' },
     start_date: { type: 'string', format: 'date-time' },
     end_date: { type: 'string', format: 'date-time' },
+    description: { type: 'string' },
     max_teams: { type: 'integer', minimum: 1 },
+    simulator_settings: { 
+      type: 'object',
+      additionalProperties: true
+    },
     status: { type: 'string', enum: ['active', 'completed', 'pending'] }
   },
   required: ['name', 'location_id', 'start_date', 'end_date', 'max_teams']
@@ -42,8 +53,13 @@ const updateLeagueSchema = {
     name: { type: 'string' },
     start_date: { type: 'string', format: 'date-time' },
     end_date: { type: 'string', format: 'date-time' },
+    description: { type: 'string' },
     status: { type: 'string', enum: ['active', 'completed', 'pending'] },
-    max_teams: { type: 'integer', minimum: 1 }
+    max_teams: { type: 'integer', minimum: 1 },
+    simulator_settings: { 
+      type: 'object',
+      additionalProperties: true
+    }
   }
 };
 
@@ -52,7 +68,9 @@ interface CreateLeagueBody {
   location_id: string;
   start_date: string;
   end_date: string;
+  description?: string;
   max_teams: number;
+  simulator_settings?: Record<string, any>;
   status: 'active' | 'completed' | 'pending';
 }
 
@@ -60,8 +78,10 @@ interface UpdateLeagueBody {
   name?: string;
   start_date?: string;
   end_date?: string;
+  description?: string;
   status?: 'active' | 'completed' | 'pending';
   max_teams?: number;
+  simulator_settings?: Record<string, any>;
 }
 
 export async function leagueRoutes(fastify: FastifyInstance) {
@@ -81,6 +101,193 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     return await db.selectFrom('leagues')
       .selectAll()
       .execute();
+  });
+
+  // Get leagues the current user is participating in
+  fastify.get('/my', async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      
+      // Find leagues through team membership
+      const leagues = await db.selectFrom('team_members')
+        .innerJoin('teams', 'teams.id', 'team_members.team_id')
+        .innerJoin('leagues', 'leagues.id', 'teams.league_id')
+        .innerJoin('locations', 'locations.id', 'leagues.location_id')
+        .select([
+          'leagues.id',
+          'leagues.name',
+          'leagues.start_date',
+          'leagues.end_date',
+          'leagues.status',
+          'locations.name as location_name',
+          'teams.id as team_id',
+          'teams.name as team_name'
+        ])
+        .where('team_members.user_id', '=', userId)
+        .where('team_members.status', '=', 'active')
+        .execute();
+      
+      return leagues;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get league standings
+  fastify.get('/:id/standings', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    
+    try {
+      // Check if league exists
+      const league = await db.selectFrom('leagues')
+        .select(['id', 'name', 'status'])
+        .where('id', '=', id)
+        .executeTakeFirst();
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Get teams and calculate their standings
+      const standings = await db.selectFrom('teams')
+        .leftJoin('matches as home_matches', join => 
+          join.on('teams.id', '=', 'home_matches.home_team_id')
+              .on('home_matches.league_id', '=', id)
+        )
+        .leftJoin('matches as away_matches', join => 
+          join.on('teams.id', '=', 'away_matches.away_team_id')
+              .on('away_matches.league_id', '=', id)
+        )
+        .leftJoin('match_games as home_games', 'home_games.match_id', 'home_matches.id')
+        .leftJoin('match_games as away_games', 'away_games.match_id', 'away_matches.id')
+        .select([
+          'teams.id',
+          'teams.name',
+          sql<number>`COUNT(DISTINCT CASE WHEN home_matches.status = 'completed' OR away_matches.status = 'completed' THEN
+            CASE WHEN home_matches.id IS NOT NULL THEN home_matches.id ELSE away_matches.id END
+            ELSE NULL END)`.as('matches_played'),
+          sql<number>`COUNT(DISTINCT CASE 
+            WHEN home_matches.status = 'completed' AND (
+              SELECT COUNT(*) FROM match_games 
+              WHERE match_id = home_matches.id AND home_score > away_score
+            ) > (
+              SELECT COUNT(*) FROM match_games 
+              WHERE match_id = home_matches.id AND away_score > home_score
+            ) THEN home_matches.id
+            WHEN away_matches.status = 'completed' AND (
+              SELECT COUNT(*) FROM match_games 
+              WHERE match_id = away_matches.id AND away_score > home_score
+            ) > (
+              SELECT COUNT(*) FROM match_games 
+              WHERE match_id = away_matches.id AND home_score > away_score
+            ) THEN away_matches.id
+            ELSE NULL END)`.as('matches_won'),
+          sql<number>`SUM(CASE 
+            WHEN home_games.match_id IS NOT NULL AND home_games.home_score > home_games.away_score THEN 1
+            WHEN away_games.match_id IS NOT NULL AND away_games.away_score > away_games.home_score THEN 1
+            ELSE 0 END)`.as('games_won'),
+          sql<number>`COUNT(CASE 
+            WHEN home_games.match_id IS NOT NULL THEN 1
+            WHEN away_games.match_id IS NOT NULL THEN 1
+            ELSE NULL END)`.as('games_played')
+        ])
+        .where('teams.league_id', '=', id)
+        .groupBy(['teams.id', 'teams.name'])
+        .orderBy(sql`matches_won DESC, games_won DESC`)
+        .execute();
+      
+      return {
+        league,
+        standings: standings.map(team => ({
+          ...team,
+          win_percentage: team.matches_played > 0 
+            ? Math.round((team.matches_won / team.matches_played) * 100) 
+            : 0,
+          game_win_percentage: team.games_played > 0 
+            ? Math.round((team.games_won / team.games_played) * 100) 
+            : 0
+        }))
+      };
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get league members (players)
+  fastify.get('/:id/members', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    
+    try {
+      // Check if league exists
+      const league = await db.selectFrom('leagues')
+        .select(['id', 'name'])
+        .where('id', '=', id)
+        .executeTakeFirst();
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Get all teams and their members
+      const members = await db.selectFrom('teams')
+        .innerJoin('team_members', 'team_members.team_id', 'teams.id')
+        .innerJoin('users', 'users.id', 'team_members.user_id')
+        .select([
+          'teams.id as team_id',
+          'teams.name as team_name',
+          'users.id as user_id',
+          'users.username',
+          'team_members.role as member_role'
+        ])
+        .where('teams.league_id', '=', id)
+        .where('team_members.status', '=', 'active')
+        .orderBy(['teams.name', 'users.username'])
+        .execute();
+      
+      // Group by teams
+      interface TeamMember {
+        user_id: string;
+        username: string;
+        role: string;
+      }
+      
+      interface TeamWithMembers {
+        team_id: string;
+        team_name: string;
+        members: TeamMember[];
+      }
+      
+      const teamMembers: Record<string, TeamWithMembers> = {};
+      
+      members.forEach(member => {
+        const teamId = member.team_id;
+        if (!teamMembers[teamId]) {
+          teamMembers[teamId] = {
+            team_id: teamId,
+            team_name: member.team_name,
+            members: []
+          };
+        }
+        
+        teamMembers[teamId].members.push({
+          user_id: member.user_id,
+          username: member.username,
+          role: member.member_role
+        });
+      });
+      
+      return {
+        league,
+        teams: Object.values(teamMembers)
+      };
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
   });
 
   // Get league by ID
@@ -192,7 +399,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
           start_date: new Date(request.body.start_date),
           end_date: new Date(request.body.end_date),
           max_teams: request.body.max_teams,
-          status: (request.body.status || 'pending') as LeagueStatus
+          status: (request.body.status || 'pending') as LeagueStatus,
+          simulator_settings: request.body.simulator_settings ? JSON.stringify(request.body.simulator_settings) as any : null
         })
         .execute();
 
@@ -277,19 +485,20 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       if (request.body.max_teams) updateData.max_teams = request.body.max_teams;
       if (request.body.start_date) updateData.start_date = new Date(request.body.start_date);
       if (request.body.end_date) updateData.end_date = new Date(request.body.end_date);
-      if (request.body.status) updateData.status = request.body.status as LeagueStatus;
-
-      const result = await db.updateTable('leagues')
+      if (request.body.status) updateData.status = request.body.status;
+      if (request.body.simulator_settings !== undefined) {
+        updateData.simulator_settings = request.body.simulator_settings ? 
+          JSON.stringify(request.body.simulator_settings) : 
+          null;
+      }
+      
+      // Update the league
+      await db.updateTable('leagues')
         .set(updateData)
         .where('id', '=', id)
-        .executeTakeFirst();
+        .execute();
 
-      if (!result || result.numUpdatedRows === BigInt(0)) {
-        reply.code(404).send({ error: 'League not found' });
-        return;
-      }
-
-      return { message: 'League updated successfully' };
+      reply.send({ message: 'League updated successfully' });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
@@ -339,7 +548,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     }
   }, async (request, reply) => {
     const { id } = request.params;
-
+    
     try {
       // Verify league exists and manager has access
       const league = await db.selectFrom('leagues')
@@ -359,16 +568,12 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const result = await db.deleteFrom('leagues')
+      // Delete the league
+      await db.deleteFrom('leagues')
         .where('id', '=', id)
-        .executeTakeFirst();
+        .execute();
 
-      if (!result || result.numDeletedRows === BigInt(0)) {
-        reply.code(404).send({ error: 'League not found' });
-        return;
-      }
-
-      return { message: 'League deleted successfully' };
+      reply.send({ message: 'League deleted successfully' });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
