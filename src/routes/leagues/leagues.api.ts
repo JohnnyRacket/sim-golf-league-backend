@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { LeagueMemberRole } from '../../types/database';
 import { 
   leagueSchema, 
   leagueDetailSchema,
@@ -16,7 +17,15 @@ import {
   CreateLeagueBody, 
   UpdateLeagueBody,
   LeagueWithLocation,
-  LeagueDetail
+  LeagueDetail,
+  leagueMemberSchema,
+  leagueMembershipRequestSchema,
+  createMembershipRequestSchema,
+  updateLeagueMemberSchema,
+  memberParamsSchema,
+  requestParamsSchema,
+  CreateMembershipRequestBody,
+  UpdateLeagueMemberBody
 } from './leagues.types';
 import { LeaguesService } from './leagues.service';
 
@@ -336,6 +345,442 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       }
       
       reply.send({ message: 'League deleted successfully' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // LEAGUE MEMBERSHIP ENDPOINTS
+
+  // Get league members
+  fastify.get('/:id/members', {
+    schema: {
+      description: 'Get all members of a league',
+      tags: ['leagues'],
+      params: leagueParamsSchema,
+      response: {
+        200: {
+          type: 'array',
+          items: leagueMemberSchema
+        },
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    try {
+      const { id } = request.params;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      const members = await leaguesService.getLeagueMembers(id);
+      return members;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Add a member to a league (managers only)
+  fastify.post<{ Params: { id: string }; Body: UpdateLeagueMemberBody }>('/:id/members', {
+    schema: {
+      description: 'Add a user to a league with a role (managers only)',
+      tags: ['leagues'],
+      params: leagueParamsSchema,
+      body: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', format: 'uuid' },
+          role: { type: 'string', enum: ['player', 'spectator', 'manager'] }
+        },
+        required: ['user_id', 'role']
+      },
+      response: {
+        201: leagueMemberSchema,
+        400: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const { user_id, role } = request.body as { user_id: string; role: LeagueMemberRole };
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized to add members
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to manage league members' });
+        return;
+      }
+      
+      // Add the member
+      const member = await leaguesService.addLeagueMember(id, user_id, role);
+      
+      if (!member) {
+        reply.code(400).send({ error: 'Failed to add member' });
+        return;
+      }
+      
+      reply.code(201).send(member);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Update a league member's role (managers only)
+  fastify.put<{ Params: { id: string; memberId: string }; Body: UpdateLeagueMemberBody }>('/:id/members/:memberId', {
+    schema: {
+      description: 'Update a league member\'s role (managers only)',
+      tags: ['leagues'],
+      params: memberParamsSchema,
+      body: updateLeagueMemberSchema,
+      response: {
+        200: leagueMemberSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id, memberId } = request.params;
+      const { role } = request.body;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to manage league members' });
+        return;
+      }
+      
+      // Update the member
+      const member = await leaguesService.updateLeagueMemberRole(memberId, role);
+      
+      if (!member) {
+        reply.code(404).send({ error: 'Member not found' });
+        return;
+      }
+      
+      return member;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Remove a member from a league (managers only)
+  fastify.delete<{ Params: { id: string; memberId: string } }>('/:id/members/:memberId', {
+    schema: {
+      description: 'Remove a member from a league (managers only)',
+      tags: ['leagues'],
+      params: memberParamsSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id, memberId } = request.params;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to manage league members' });
+        return;
+      }
+      
+      // Remove the member
+      const success = await leaguesService.removeLeagueMember(memberId);
+      
+      if (!success) {
+        reply.code(404).send({ error: 'Member not found' });
+        return;
+      }
+      
+      reply.send({ message: 'Member removed successfully' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get membership requests for a league (managers only)
+  fastify.get('/:id/requests', {
+    schema: {
+      description: 'Get league membership requests (managers only)',
+      tags: ['leagues'],
+      params: leagueParamsSchema,
+      querystring: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['pending', 'approved', 'rejected', 'cancelled'] }
+        }
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: leagueMembershipRequestSchema
+        },
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request: FastifyRequest<{ 
+    Params: { id: string }; 
+    Querystring: { status?: 'pending' | 'approved' | 'rejected' | 'cancelled' } 
+  }>, reply: FastifyReply) => {
+    try {
+      const { id } = request.params;
+      const { status = 'pending' } = request.query;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to view league requests' });
+        return;
+      }
+      
+      const requests = await leaguesService.getLeagueMembershipRequests(id, status);
+      return requests;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Create a membership request
+  fastify.post<{ Body: CreateMembershipRequestBody }>('/request-membership', {
+    schema: {
+      description: 'Request to join a league with a specific role',
+      tags: ['leagues'],
+      body: createMembershipRequestSchema,
+      response: {
+        201: successMessageSchema,
+        400: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { league_id, requested_role, message } = request.body;
+      const userId = request.user.id.toString();
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(league_id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // If requesting manager role, check if the league is recently created
+      if (requested_role === 'manager') {
+        // Check if the league has at least one manager already
+        const hasManagers = await leaguesService.getLeagueMembers(league_id)
+          .then(members => members.some(m => m.role === 'manager'));
+        
+        if (hasManagers) {
+          const isOwner = await leaguesService.isUserLocationManager(league.location_id, userId);
+          if (!isOwner) {
+            reply.code(400).send({ 
+              error: 'Only location owners can request manager role for established leagues' 
+            });
+            return;
+          }
+        }
+      }
+      
+      try {
+        await leaguesService.createLeagueMembershipRequest(
+          league_id,
+          userId,
+          requested_role,
+          message
+        );
+        
+        reply.code(201).send({ message: 'Membership request created successfully' });
+      } catch (err) {
+        if (err instanceof Error) {
+          reply.code(400).send({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Get my membership requests
+  fastify.get('/my-requests', {
+    schema: {
+      description: 'Get current user\'s league membership requests',
+      tags: ['leagues'],
+      response: {
+        200: {
+          type: 'array',
+          items: leagueMembershipRequestSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.id.toString();
+      const requests = await leaguesService.getUserMembershipRequests(userId);
+      return requests;
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Approve a membership request (managers only)
+  fastify.post<{ Params: { id: string; requestId: string } }>('/:id/requests/:requestId/approve', {
+    schema: {
+      description: 'Approve a league membership request (managers only)',
+      tags: ['leagues'],
+      params: requestParamsSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id, requestId } = request.params;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to manage league requests' });
+        return;
+      }
+      
+      try {
+        const success = await leaguesService.approveLeagueMembershipRequest(requestId);
+        if (success) {
+          reply.send({ message: 'Membership request approved' });
+        } else {
+          reply.code(404).send({ error: 'Request not found' });
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          reply.code(400).send({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Reject a membership request (managers only)
+  fastify.post<{ Params: { id: string; requestId: string } }>('/:id/requests/:requestId/reject', {
+    schema: {
+      description: 'Reject a league membership request (managers only)',
+      tags: ['leagues'],
+      params: requestParamsSchema,
+      response: {
+        200: successMessageSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id, requestId } = request.params;
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, request.user.id.toString());
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'Not authorized to manage league requests' });
+        return;
+      }
+      
+      const success = await leaguesService.rejectLeagueMembershipRequest(requestId);
+      
+      if (!success) {
+        reply.code(404).send({ error: 'Request not found' });
+        return;
+      }
+      
+      reply.send({ message: 'Membership request rejected' });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });

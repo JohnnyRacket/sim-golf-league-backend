@@ -1,4 +1,4 @@
-import { LeagueStatus } from '../../types/database';
+import { LeagueStatus, LeagueMemberRole, LeagueRequestStatus } from '../../types/database';
 
 // League data types
 export interface LeagueBasic {
@@ -21,7 +21,7 @@ export interface LocationInfo {
   address: string;
 }
 
-export interface ManagerInfo {
+export interface OwnerInfo {
   id: string;
   name: string;
   user_id: string;
@@ -34,15 +34,40 @@ export interface TeamInfo {
   member_count: number;
 }
 
+export interface LeagueMember {
+  id: string;
+  league_id: string;
+  user_id: string;
+  role: LeagueMemberRole;
+  joined_at: Date;
+  username: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface LeagueMembershipRequest {
+  id: string;
+  league_id: string;
+  user_id: string;
+  requested_role: LeagueMemberRole;
+  status: LeagueRequestStatus;
+  message?: string;
+  created_at: Date;
+  updated_at?: Date;
+  username?: string;
+  league_name?: string;
+}
+
 export interface LeagueDetail extends LeagueBasic {
   location: LocationInfo;
-  manager: ManagerInfo;
+  owner: OwnerInfo;
   teams: TeamInfo[];
+  members?: LeagueMember[];
 }
 
 export interface LeagueWithLocation extends LeagueBasic {
   location_name: string;
-  manager_name: string;
+  owner_name: string;
 }
 
 // Request/Response types
@@ -65,6 +90,16 @@ export interface UpdateLeagueBody {
   max_teams?: number;
   simulator_settings?: Record<string, any>;
   status?: LeagueStatus;
+}
+
+export interface CreateMembershipRequestBody {
+  league_id: string;
+  requested_role: LeagueMemberRole;
+  message?: string;
+}
+
+export interface UpdateLeagueMemberBody {
+  role: LeagueMemberRole;
 }
 
 // Schema definitions
@@ -99,7 +134,7 @@ export const locationInfoSchema = {
   required: ['id', 'name', 'address']
 };
 
-export const managerInfoSchema = {
+export const ownerInfoSchema = {
   type: 'object',
   properties: {
     id: { type: 'string', format: 'uuid' },
@@ -120,18 +155,48 @@ export const teamInfoSchema = {
   required: ['id', 'name', 'max_members', 'member_count']
 };
 
+export const leagueMemberSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    user_id: { type: 'string', format: 'uuid' },
+    role: { type: 'string', enum: ['player', 'spectator', 'manager'] },
+    joined_at: { type: 'string', format: 'date-time' },
+    username: { type: 'string' }
+  },
+  required: ['id', 'user_id', 'role', 'joined_at', 'username']
+};
+
+export const leagueMembershipRequestSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    user_id: { type: 'string', format: 'uuid' },
+    requested_role: { type: 'string', enum: ['player', 'spectator', 'manager'] },
+    status: { type: 'string', enum: ['pending', 'approved', 'rejected', 'cancelled'] },
+    message: { type: 'string' },
+    created_at: { type: 'string', format: 'date-time' },
+    username: { type: 'string' }
+  },
+  required: ['id', 'user_id', 'requested_role', 'status', 'created_at']
+};
+
 export const leagueDetailSchema = {
   type: 'object',
   properties: {
     ...leagueSchema.properties,
     location: locationInfoSchema,
-    manager: managerInfoSchema,
+    owner: ownerInfoSchema,
     teams: {
       type: 'array',
       items: teamInfoSchema
+    },
+    members: {
+      type: 'array',
+      items: leagueMemberSchema
     }
   },
-  required: [...leagueSchema.required, 'location', 'manager', 'teams']
+  required: [...leagueSchema.required, 'location', 'owner', 'teams']
 };
 
 export const leagueWithLocationSchema = {
@@ -139,9 +204,9 @@ export const leagueWithLocationSchema = {
   properties: {
     ...leagueSchema.properties,
     location_name: { type: 'string' },
-    manager_name: { type: 'string' }
+    owner_name: { type: 'string' }
   },
-  required: [...leagueSchema.required, 'location_name', 'manager_name']
+  required: [...leagueSchema.required, 'location_name', 'owner_name']
 };
 
 export const userLeagueMembershipSchema = {
@@ -154,7 +219,8 @@ export const userLeagueMembershipSchema = {
     status: { type: 'string', enum: ['pending', 'active', 'completed'] },
     location_name: { type: 'string' },
     team_id: { type: 'string', format: 'uuid' },
-    team_name: { type: 'string' }
+    team_name: { type: 'string' },
+    role: { type: 'string', enum: ['player', 'spectator', 'manager'] }
   },
   required: ['id', 'name', 'start_date', 'end_date', 'status', 'team_id', 'team_name']
 };
@@ -225,12 +291,48 @@ export const updateLeagueSchema = {
   }
 };
 
+export const createMembershipRequestSchema = {
+  type: 'object',
+  properties: {
+    league_id: { type: 'string', format: 'uuid' },
+    requested_role: { type: 'string', enum: ['player', 'spectator', 'manager'] },
+    message: { type: 'string' }
+  },
+  required: ['league_id', 'requested_role']
+};
+
+export const updateLeagueMemberSchema = {
+  type: 'object',
+  properties: {
+    role: { type: 'string', enum: ['player', 'spectator', 'manager'] }
+  },
+  required: ['role']
+};
+
 export const leagueParamsSchema = {
   type: 'object',
   properties: {
     id: { type: 'string', format: 'uuid' }
   },
   required: ['id']
+};
+
+export const memberParamsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    memberId: { type: 'string', format: 'uuid' }
+  },
+  required: ['id', 'memberId']
+};
+
+export const requestParamsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    requestId: { type: 'string', format: 'uuid' }
+  },
+  required: ['id', 'requestId']
 };
 
 export const errorResponseSchema = {

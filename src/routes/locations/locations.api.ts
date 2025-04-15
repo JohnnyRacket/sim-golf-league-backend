@@ -89,14 +89,14 @@ export async function locationRoutes(fastify: FastifyInstance) {
       const userId = request.user.id.toString();
       const username = request.user.username;
       
-      // Create or get manager ID
-      const managerId = await locationsService.createManagerIfNeeded(
+      // Create or get owner ID
+      const ownerId = await locationsService.createOwnerIfNeeded(
         userId,
-        `Manager for ${username}`
+        `Owner: ${username}`
       );
       
       // Create the location
-      const location = await locationsService.createLocation(managerId, {
+      const location = await locationsService.createLocation(ownerId, {
         name,
         address
       });
@@ -139,9 +139,9 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
       
       // Check if user is authorized
-      const isManager = await locationsService.isUserLocationManager(id, userId);
+      const isOwner = await locationsService.isUserLocationOwner(id, userId);
       
-      if (!isManager && !request.user.roles.includes('admin')) {
+      if (!isOwner && !request.user.roles.includes('admin')) {
         reply.code(403).send({ error: 'You are not authorized to update this location' });
         return;
       }
@@ -183,9 +183,9 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
       
       // Check if user is authorized
-      const isManager = await locationsService.isUserLocationManager(id, userId);
+      const isOwner = await locationsService.isUserLocationOwner(id, userId);
       
-      if (!isManager && !request.user.roles.includes('admin')) {
+      if (!isOwner && !request.user.roles.includes('admin')) {
         reply.code(403).send({ error: 'You are not authorized to delete this location' });
         return;
       }

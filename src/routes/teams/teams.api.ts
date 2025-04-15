@@ -423,6 +423,20 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
+      // Check if user is already a member of this team
+      const isTeamMember = await teamsService.isTeamMember(team_id, userId);
+      if (isTeamMember) {
+        reply.code(400).send({ error: 'You are already a member of this team' });
+        return;
+      }
+      
+      // Check if user is a member of the league
+      const isLeagueMember = await teamsService.isLeagueMember(team.league_id, userId);
+      if (!isLeagueMember) {
+        reply.code(403).send({ error: 'You must be a member of the league to join a team' });
+        return;
+      }
+      
       // Check if team has available spots
       const hasAvailableSpots = await teamsService.hasAvailableSpots(team_id);
       
@@ -444,11 +458,11 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get join requests for a team (managers only)
+  // Get join requests for a team (team members or league managers)
   fastify.get<{ Params: { id: string } }>('/:id/join-requests', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Get join requests for a team (manager only)',
+      description: 'Get join requests for a team (team members or league managers)',
       tags: ['teams'],
       params: teamIdParamSchema,
       response: {
@@ -464,6 +478,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id: teamId } = request.params;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -473,10 +488,13 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      // Check if user is authorized as either:
+      // 1. A league manager
+      // 2. A member of the team
+      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
       
-      if (!isAuthorized) {
+      if (!isLeagueManager && !isTeamMember) {
         reply.code(403).send({ error: 'You are not authorized to view join requests for this team' });
         return;
       }
@@ -491,11 +509,11 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Approve a join request (managers only)
+  // Approve a join request (team members or league managers)
   fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/approve', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Approve a join request (manager only)',
+      description: 'Approve a join request (team members or league managers)',
       tags: ['teams'],
       params: joinRequestIdParamSchema,
       response: {
@@ -509,6 +527,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id: teamId, requestId } = request.params;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -518,10 +537,13 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      // Check if user is authorized as either:
+      // 1. A league manager
+      // 2. A member of the team
+      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
       
-      if (!isAuthorized) {
+      if (!isLeagueManager && !isTeamMember) {
         reply.code(403).send({ error: 'You are not authorized to approve join requests for this team' });
         return;
       }
@@ -552,11 +574,11 @@ export async function teamRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Reject a join request (managers only)
+  // Reject a join request (team members or league managers)
   fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/reject', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Reject a join request (manager only)',
+      description: 'Reject a join request (team members or league managers)',
       tags: ['teams'],
       params: joinRequestIdParamSchema,
       response: {
@@ -569,6 +591,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id: teamId, requestId } = request.params;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -578,10 +601,13 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      // Check if user is authorized as either:
+      // 1. A league manager
+      // 2. A member of the team
+      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
       
-      if (!isAuthorized) {
+      if (!isLeagueManager && !isTeamMember) {
         reply.code(403).send({ error: 'You are not authorized to reject join requests for this team' });
         return;
       }

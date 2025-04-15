@@ -3,19 +3,19 @@ export interface LocationBasic {
   id: string;
   name: string;
   address: string;
-  manager_id: string;
+  owner_id: string;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface ManagerInfo {
+export interface OwnerInfo {
   id: string;
   name: string;
   user_id: string;
 }
 
 export interface LocationDetail extends LocationBasic {
-  manager: ManagerInfo;
+  owner: OwnerInfo;
   league_count: number;
 }
 
@@ -37,11 +37,11 @@ export const locationSchema = {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
     address: { type: 'string' },
-    manager_id: { type: 'string', format: 'uuid' },
+    owner_id: { type: 'string', format: 'uuid' },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' }
   },
-  required: ['id', 'name', 'address', 'manager_id']
+  required: ['id', 'name', 'address', 'owner_id']
 } as const;
 
 export const locationDetailSchema = {
@@ -50,10 +50,10 @@ export const locationDetailSchema = {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
     address: { type: 'string' },
-    manager_id: { type: 'string', format: 'uuid' },
+    owner_id: { type: 'string', format: 'uuid' },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' },
-    manager: {
+    owner: {
       type: 'object',
       properties: {
         id: { type: 'string', format: 'uuid' },
@@ -63,7 +63,7 @@ export const locationDetailSchema = {
     },
     league_count: { type: 'number' }
   },
-  required: ['id', 'name', 'address', 'manager_id', 'manager']
+  required: ['id', 'name', 'address', 'owner_id', 'owner']
 };
 
 export const createLocationSchema = {
@@ -97,8 +97,8 @@ export const locationWithDetailsSchema = {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
     address: { type: 'string' },
-    manager_id: { type: 'string', format: 'uuid' },
-    manager: {
+    owner_id: { type: 'string', format: 'uuid' },
+    owner: {
       type: 'object',
       properties: {
         id: { type: 'string', format: 'uuid' },
@@ -137,8 +137,8 @@ export interface LocationWithDetails {
   id: string;
   name: string;
   address: string;
-  manager_id: string;
-  manager?: {
+  owner_id: string;
+  owner?: {
     id: string;
     name: string;
     user_id: string;

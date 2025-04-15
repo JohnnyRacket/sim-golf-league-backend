@@ -1,7 +1,7 @@
 import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
-import { Database, LeagueStatus } from '../../types/database';
-import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, ManagerInfo, TeamInfo } from './leagues.types';
+import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus } from '../../types/database';
+import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, OwnerInfo, TeamInfo, LeagueMember } from './leagues.types';
 
 export class LeaguesService {
   private db: Kysely<Database>;
@@ -17,7 +17,7 @@ export class LeaguesService {
     try {
       let query = this.db.selectFrom('leagues')
         .leftJoin('locations', 'locations.id', 'leagues.location_id')
-        .leftJoin('managers', 'managers.id', 'locations.manager_id')
+        .leftJoin('owners', 'owners.id', 'locations.owner_id')
         .select([
           'leagues.id',
           'leagues.name',
@@ -31,7 +31,7 @@ export class LeaguesService {
           'leagues.created_at',
           'leagues.updated_at',
           'locations.name as location_name',
-          'managers.name as manager_name'
+          'owners.name as owner_name'
         ]);
       
       if (locationId) {
@@ -79,9 +79,10 @@ export class LeaguesService {
    */
   async getLeaguesByManager(userId: string): Promise<LeagueWithLocation[]> {
     try {
-      const leagues = await this.db.selectFrom('leagues')
+      // First, get leagues where the user is a location owner
+      const ownerLeagues = await this.db.selectFrom('leagues')
         .leftJoin('locations', 'locations.id', 'leagues.location_id')
-        .leftJoin('managers', 'managers.id', 'locations.manager_id')
+        .leftJoin('owners', 'owners.id', 'locations.owner_id')
         .select([
           'leagues.id',
           'leagues.name',
@@ -95,12 +96,42 @@ export class LeaguesService {
           'leagues.created_at',
           'leagues.updated_at',
           'locations.name as location_name',
-          'managers.name as manager_name'
+          'owners.name as owner_name'
         ])
-        .where('managers.user_id', '=', userId)
+        .where('owners.user_id', '=', userId)
         .execute();
       
-      return leagues as LeagueWithLocation[];
+      // Now get leagues where the user has a manager role
+      const managerRoleLeagues = await this.db.selectFrom('league_members')
+        .innerJoin('leagues', 'leagues.id', 'league_members.league_id')
+        .leftJoin('locations', 'locations.id', 'leagues.location_id')
+        .leftJoin('owners', 'owners.id', 'locations.owner_id')
+        .select([
+          'leagues.id',
+          'leagues.name',
+          'leagues.location_id',
+          'leagues.start_date',
+          'leagues.end_date',
+          'leagues.description',
+          'leagues.max_teams',
+          'leagues.simulator_settings',
+          'leagues.status',
+          'leagues.created_at',
+          'leagues.updated_at',
+          'locations.name as location_name',
+          'owners.name as owner_name'
+        ])
+        .where('league_members.user_id', '=', userId)
+        .where('league_members.role', '=', 'manager')
+        .execute();
+      
+      // Combine and deduplicate results
+      const allLeagues = [...ownerLeagues, ...managerRoleLeagues];
+      const uniqueLeagues = Array.from(
+        new Map(allLeagues.map(league => [league.id, league])).values()
+      );
+      
+      return uniqueLeagues as LeagueWithLocation[];
     } catch (error) {
       throw new Error(`Failed to get manager's leagues: ${error}`);
     }
@@ -130,12 +161,12 @@ export class LeaguesService {
         return null;
       }
       
-      // Get manager info
-      const manager = await this.db.selectFrom('managers')
-        .innerJoin('locations', 'locations.manager_id', 'managers.id')
-        .select(['managers.id', 'managers.name', 'managers.user_id'])
+      // Get owner info
+      const owner = await this.db.selectFrom('owners')
+        .innerJoin('locations', 'locations.owner_id', 'owners.id')
+        .select(['owners.id', 'owners.name', 'owners.user_id'])
         .where('locations.id', '=', league.location_id)
-        .executeTakeFirst() as ManagerInfo | undefined;
+        .executeTakeFirst() as OwnerInfo | undefined;
       
       // Get teams in the league
       const teams = await this.db.selectFrom('teams')
@@ -158,15 +189,19 @@ export class LeaguesService {
         };
       }));
       
+      // Get league members
+      const members = await this.getLeagueMembers(id);
+      
       return {
         ...league,
         location,
-        manager: manager || {
+        owner: owner || {
           id: '',
           name: 'Unknown',
           user_id: ''
         },
-        teams: teamsWithCount as TeamInfo[]
+        teams: teamsWithCount as TeamInfo[],
+        members
       };
     } catch (error) {
       throw new Error(`Failed to get league: ${error}`);
@@ -174,19 +209,19 @@ export class LeaguesService {
   }
 
   /**
-   * Check if user is manager of the location that a league belongs to
+   * Check if user is an owner of the location that a league belongs to
    */
   async isUserLocationManager(locationId: string, userId: string): Promise<boolean> {
     try {
       const result = await this.db.selectFrom('locations')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select('managers.user_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select('owners.user_id')
         .where('locations.id', '=', locationId)
         .executeTakeFirst();
       
       return !!result && result.user_id.toString() === userId;
     } catch (error) {
-      throw new Error(`Failed to check if user is location manager: ${error}`);
+      throw new Error(`Failed to check if user is location owner: ${error}`);
     }
   }
 
@@ -195,16 +230,323 @@ export class LeaguesService {
    */
   async isUserLeagueManager(leagueId: string, userId: string): Promise<boolean> {
     try {
-      const result = await this.db.selectFrom('leagues')
+      // First check if the user is a location owner for this league
+      const isLocationOwner = await this.db.selectFrom('leagues')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select('managers.user_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select('owners.user_id')
         .where('leagues.id', '=', leagueId)
         .executeTakeFirst();
       
-      return !!result && result.user_id.toString() === userId;
+      if (isLocationOwner && isLocationOwner.user_id.toString() === userId) {
+        return true;
+      }
+      
+      // Then check if the user has a manager role in the league
+      return await this.isUserLeagueMember(leagueId, userId, 'manager');
     } catch (error) {
       throw new Error(`Failed to check if user is league manager: ${error}`);
+    }
+  }
+
+  /**
+   * Check if user is a league member with a specific role
+   */
+  async isUserLeagueMember(leagueId: string, userId: string, role?: LeagueMemberRole): Promise<boolean> {
+    try {
+      let query = this.db.selectFrom('league_members')
+        .select('id')
+        .where('league_id', '=', leagueId)
+        .where('user_id', '=', userId);
+      
+      if (role) {
+        query = query.where('role', '=', role);
+      }
+      
+      const member = await query.executeTakeFirst();
+      return !!member;
+    } catch (error) {
+      throw new Error(`Failed to check if user is league member: ${error}`);
+    }
+  }
+
+  /**
+   * Get all members of a league
+   */
+  async getLeagueMembers(leagueId: string): Promise<LeagueMember[]> {
+    try {
+      const members = await this.db.selectFrom('league_members')
+        .innerJoin('users', 'users.id', 'league_members.user_id')
+        .select([
+          'league_members.id',
+          'league_members.user_id',
+          'league_members.role',
+          'league_members.joined_at',
+          'users.username'
+        ])
+        .where('league_members.league_id', '=', leagueId)
+        .execute();
+      
+      return members as LeagueMember[];
+    } catch (error) {
+      throw new Error(`Failed to get league members: ${error}`);
+    }
+  }
+
+  /**
+   * Add a user to a league with a specific role
+   */
+  async addLeagueMember(leagueId: string, userId: string, role: LeagueMemberRole = 'spectator'): Promise<LeagueMember | null> {
+    try {
+      // Check if user is already a member
+      const existingMember = await this.db.selectFrom('league_members')
+        .selectAll()
+        .where('league_id', '=', leagueId)
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+      
+      if (existingMember) {
+        // If role is different, update it
+        if (existingMember.role !== role) {
+          const updated = await this.db.updateTable('league_members')
+            .set({ role })
+            .where('id', '=', existingMember.id)
+            .returningAll()
+            .executeTakeFirst();
+          
+          return updated as LeagueMember | null;
+        }
+        
+        return existingMember as LeagueMember;
+      }
+      
+      // Add new member
+      const memberId = uuidv4();
+      
+      const result = await this.db.insertInto('league_members')
+        .values({
+          id: memberId,
+          league_id: leagueId,
+          user_id: userId,
+          role
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      
+      // Get username for the response
+      const user = await this.db.selectFrom('users')
+        .select('username')
+        .where('id', '=', userId)
+        .executeTakeFirst();
+      
+      return {
+        ...result,
+        username: user?.username || 'Unknown'
+      } as LeagueMember;
+    } catch (error) {
+      throw new Error(`Failed to add league member: ${error}`);
+    }
+  }
+
+  /**
+   * Update a league member's role
+   */
+  async updateLeagueMemberRole(memberId: string, role: LeagueMemberRole): Promise<LeagueMember | null> {
+    try {
+      const result = await this.db.updateTable('league_members')
+        .set({ role })
+        .where('id', '=', memberId)
+        .returningAll()
+        .executeTakeFirst();
+      
+      if (!result) {
+        return null;
+      }
+      
+      // Get username for the response
+      const user = await this.db.selectFrom('users')
+        .select('username')
+        .where('id', '=', result.user_id)
+        .executeTakeFirst();
+      
+      return {
+        ...result,
+        username: user?.username || 'Unknown'
+      } as LeagueMember;
+    } catch (error) {
+      throw new Error(`Failed to update league member role: ${error}`);
+    }
+  }
+
+  /**
+   * Remove a member from a league
+   */
+  async removeLeagueMember(memberId: string): Promise<boolean> {
+    try {
+      const result = await this.db.deleteFrom('league_members')
+        .where('id', '=', memberId)
+        .execute();
+      
+      return !!result;
+    } catch (error) {
+      throw new Error(`Failed to remove league member: ${error}`);
+    }
+  }
+
+  /**
+   * Create a league membership request
+   */
+  async createLeagueMembershipRequest(
+    leagueId: string,
+    userId: string,
+    requestedRole: LeagueMemberRole,
+    message?: string
+  ): Promise<any> {
+    try {
+      // Check if user is already a member with the requested role
+      const existingMember = await this.db.selectFrom('league_members')
+        .selectAll()
+        .where('league_id', '=', leagueId)
+        .where('user_id', '=', userId)
+        .where('role', '=', requestedRole)
+        .executeTakeFirst();
+      
+      if (existingMember) {
+        throw new Error('User already has the requested role in this league');
+      }
+      
+      // Check for existing pending requests
+      const existingRequest = await this.db.selectFrom('league_membership_requests')
+        .selectAll()
+        .where('league_id', '=', leagueId)
+        .where('user_id', '=', userId)
+        .where('requested_role', '=', requestedRole)
+        .where('status', '=', 'pending')
+        .executeTakeFirst();
+      
+      if (existingRequest) {
+        throw new Error('A pending request already exists');
+      }
+      
+      // Create request
+      const requestId = uuidv4();
+      
+      const result = await this.db.insertInto('league_membership_requests')
+        .values({
+          id: requestId,
+          league_id: leagueId,
+          user_id: userId,
+          requested_role: requestedRole,
+          status: 'pending',
+          message
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to create league membership request: ${error}`);
+    }
+  }
+
+  /**
+   * Get pending membership requests for a league
+   */
+  async getLeagueMembershipRequests(leagueId: string, status: LeagueRequestStatus = 'pending'): Promise<any[]> {
+    try {
+      const requests = await this.db.selectFrom('league_membership_requests')
+        .innerJoin('users', 'users.id', 'league_membership_requests.user_id')
+        .select([
+          'league_membership_requests.id',
+          'league_membership_requests.user_id',
+          'league_membership_requests.requested_role',
+          'league_membership_requests.message',
+          'league_membership_requests.created_at',
+          'users.username'
+        ])
+        .where('league_membership_requests.league_id', '=', leagueId)
+        .where('league_membership_requests.status', '=', status)
+        .execute();
+      
+      return requests;
+    } catch (error) {
+      throw new Error(`Failed to get league membership requests: ${error}`);
+    }
+  }
+
+  /**
+   * Get membership requests created by a user
+   */
+  async getUserMembershipRequests(userId: string): Promise<any[]> {
+    try {
+      const requests = await this.db.selectFrom('league_membership_requests')
+        .innerJoin('leagues', 'leagues.id', 'league_membership_requests.league_id')
+        .select([
+          'league_membership_requests.id',
+          'league_membership_requests.league_id',
+          'league_membership_requests.requested_role',
+          'league_membership_requests.status',
+          'league_membership_requests.created_at',
+          'leagues.name as league_name'
+        ])
+        .where('league_membership_requests.user_id', '=', userId)
+        .execute();
+      
+      return requests;
+    } catch (error) {
+      throw new Error(`Failed to get user's membership requests: ${error}`);
+    }
+  }
+
+  /**
+   * Approve a league membership request
+   */
+  async approveLeagueMembershipRequest(requestId: string): Promise<boolean> {
+    try {
+      // Get the request details
+      const request = await this.db.selectFrom('league_membership_requests')
+        .selectAll()
+        .where('id', '=', requestId)
+        .where('status', '=', 'pending')
+        .executeTakeFirst();
+      
+      if (!request) {
+        throw new Error('Request not found or already processed');
+      }
+      
+      // Update request status
+      await this.db.updateTable('league_membership_requests')
+        .set({ status: 'approved' })
+        .where('id', '=', requestId)
+        .execute();
+      
+      // Add or update league member
+      await this.addLeagueMember(
+        request.league_id,
+        request.user_id,
+        request.requested_role
+      );
+      
+      return true;
+    } catch (error) {
+      throw new Error(`Failed to approve league membership request: ${error}`);
+    }
+  }
+
+  /**
+   * Reject a league membership request
+   */
+  async rejectLeagueMembershipRequest(requestId: string): Promise<boolean> {
+    try {
+      const result = await this.db.updateTable('league_membership_requests')
+        .set({ status: 'rejected' })
+        .where('id', '=', requestId)
+        .where('status', '=', 'pending')
+        .execute();
+      
+      return !!result;
+    } catch (error) {
+      throw new Error(`Failed to reject league membership request: ${error}`);
     }
   }
 

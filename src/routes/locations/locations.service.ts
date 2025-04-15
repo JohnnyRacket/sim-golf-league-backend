@@ -1,7 +1,7 @@
 import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
 import { Database } from '../../types/database';
-import { LocationBasic, LocationDetail, ManagerInfo } from './locations.types';
+import { LocationBasic, LocationDetail, OwnerInfo } from './locations.types';
 
 export class LocationsService {
   private db: Kysely<Database>;
@@ -26,7 +26,7 @@ export class LocationsService {
   }
 
   /**
-   * Get location by ID with manager details
+   * Get location by ID with owner details
    */
   async getLocationById(id: string): Promise<LocationDetail | null> {
     try {
@@ -39,13 +39,13 @@ export class LocationsService {
         return null;
       }
       
-      // Get manager info
-      const manager = await this.db.selectFrom('managers')
+      // Get owner info
+      const owner = await this.db.selectFrom('owners')
         .select(['id', 'name', 'user_id'])
-        .where('id', '=', location.manager_id)
-        .executeTakeFirst() as ManagerInfo | undefined;
+        .where('id', '=', location.owner_id)
+        .executeTakeFirst() as OwnerInfo | undefined;
       
-      if (!manager) {
+      if (!owner) {
         return null;
       }
       
@@ -57,7 +57,7 @@ export class LocationsService {
       
       return {
         ...location,
-        manager,
+        owner,
         league_count: leagueCount?.count || 0
       };
     } catch (error) {
@@ -66,81 +66,81 @@ export class LocationsService {
   }
 
   /**
-   * Get locations managed by the specified user
+   * Get locations owned by the specified user
    */
-  async getLocationsByManager(userId: string): Promise<LocationBasic[]> {
+  async getLocationsByOwner(userId: string): Promise<LocationBasic[]> {
     try {
       const locations = await this.db.selectFrom('locations')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
         .selectAll('locations')
-        .where('managers.user_id', '=', userId)
+        .where('owners.user_id', '=', userId)
         .execute();
       
       return locations as LocationBasic[];
     } catch (error) {
-      throw new Error(`Failed to get manager's locations: ${error}`);
+      throw new Error(`Failed to get owner's locations: ${error}`);
     }
   }
 
   /**
-   * Get manager by user ID
+   * Get owner by user ID
    */
-  async getManagerByUserId(userId: string): Promise<ManagerInfo | null> {
+  async getOwnerByUserId(userId: string): Promise<OwnerInfo | null> {
     try {
-      const manager = await this.db.selectFrom('managers')
+      const owner = await this.db.selectFrom('owners')
         .select(['id', 'name', 'user_id'])
         .where('user_id', '=', userId)
         .executeTakeFirst();
       
-      return manager as ManagerInfo | null;
+      return owner as OwnerInfo | null;
     } catch (error) {
-      throw new Error(`Failed to get manager: ${error}`);
+      throw new Error(`Failed to get owner: ${error}`);
     }
   }
 
   /**
-   * Check if user is the manager of a location
+   * Check if user is the owner of a location
    */
-  async isUserLocationManager(locationId: string, userId: string): Promise<boolean> {
+  async isUserLocationOwner(locationId: string, userId: string): Promise<boolean> {
     try {
       const result = await this.db.selectFrom('locations')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select('managers.user_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select('owners.user_id')
         .where('locations.id', '=', locationId)
         .executeTakeFirst();
       
       return !!result && result.user_id.toString() === userId;
     } catch (error) {
-      throw new Error(`Failed to check if user is location manager: ${error}`);
+      throw new Error(`Failed to check if user is location owner: ${error}`);
     }
   }
 
   /**
-   * Create manager for a user if it doesn't exist
+   * Create owner for a user if it doesn't exist
    */
-  async createManagerIfNeeded(userId: string, name: string): Promise<string> {
+  async createOwnerIfNeeded(userId: string, name: string): Promise<string> {
     try {
-      // Check if manager already exists
-      const existingManager = await this.getManagerByUserId(userId);
+      // Check if owner already exists
+      const existingOwner = await this.getOwnerByUserId(userId);
       
-      if (existingManager) {
-        return existingManager.id;
+      if (existingOwner) {
+        return existingOwner.id;
       }
       
-      // Create new manager
-      const managerId = uuidv4();
+      // Create new owner
+      const ownerId = uuidv4();
       
-      await this.db.insertInto('managers')
+      await this.db.insertInto('owners')
         .values({
-          id: managerId,
+          id: ownerId,
           user_id: userId,
           name
         })
         .execute();
       
-      return managerId;
+      return ownerId;
     } catch (error) {
-      throw new Error(`Failed to create manager: ${error}`);
+      throw new Error(`Failed to create owner: ${error}`);
     }
   }
 
@@ -148,7 +148,7 @@ export class LocationsService {
    * Create a new location
    */
   async createLocation(
-    managerId: string, 
+    ownerId: string, 
     data: { name: string; address: string; }
   ): Promise<LocationBasic> {
     try {
@@ -159,7 +159,7 @@ export class LocationsService {
       const result = await this.db.insertInto('locations')
         .values({
           id: locationId,
-          manager_id: managerId,
+          owner_id: ownerId,
           name,
           address
         })

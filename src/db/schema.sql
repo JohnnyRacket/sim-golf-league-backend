@@ -9,6 +9,8 @@ CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed');
 CREATE TYPE match_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled');
 CREATE TYPE match_game_status AS ENUM ('pending', 'in_progress', 'completed');
 CREATE TYPE recipient_type AS ENUM ('league', 'team', 'user');
+CREATE TYPE league_member_role AS ENUM ('player', 'spectator', 'manager');
+CREATE TYPE league_request_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
 
 -- Create users table
 CREATE TABLE users (
@@ -21,8 +23,8 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create managers table
-CREATE TABLE managers (
+-- Create owners table
+CREATE TABLE owners (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -33,7 +35,7 @@ CREATE TABLE managers (
 -- Create locations table
 CREATE TABLE locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    manager_id UUID NOT NULL REFERENCES managers(id) ON DELETE CASCADE,
+    owner_id UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     address TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -53,6 +55,32 @@ CREATE TABLE leagues (
     status league_status NOT NULL DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create league_members table to track users in leagues with roles
+CREATE TABLE league_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role league_member_role NOT NULL DEFAULT 'spectator',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(league_id, user_id)
+);
+
+-- Create league_membership_requests table
+CREATE TABLE league_membership_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requested_role league_member_role NOT NULL,
+    status league_request_status NOT NULL DEFAULT 'pending',
+    message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(league_id, user_id, requested_role, status) 
+        WHERE status = 'pending'
 );
 
 -- Create teams table
@@ -76,6 +104,18 @@ CREATE TABLE team_members (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(team_id, user_id)
+);
+
+-- Create team_join_requests table
+CREATE TABLE team_join_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status league_request_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(team_id, user_id, status) 
+        WHERE status = 'pending'
 );
 
 -- Create matches table
@@ -134,8 +174,8 @@ CREATE TRIGGER update_users_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_managers_updated_at
-    BEFORE UPDATE ON managers
+CREATE TRIGGER update_owners_updated_at
+    BEFORE UPDATE ON owners
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -149,6 +189,16 @@ CREATE TRIGGER update_leagues_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_league_members_updated_at
+    BEFORE UPDATE ON league_members
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_league_membership_requests_updated_at
+    BEFORE UPDATE ON league_membership_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_teams_updated_at
     BEFORE UPDATE ON teams
     FOR EACH ROW
@@ -156,6 +206,11 @@ CREATE TRIGGER update_teams_updated_at
 
 CREATE TRIGGER update_team_members_updated_at
     BEFORE UPDATE ON team_members
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_team_join_requests_updated_at
+    BEFORE UPDATE ON team_join_requests
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 

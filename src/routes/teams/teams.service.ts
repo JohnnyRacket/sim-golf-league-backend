@@ -115,8 +115,8 @@ export class TeamsService {
     try {
       const league = await this.db.selectFrom('leagues')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select(['leagues.id', 'managers.user_id'])
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select(['leagues.id', 'owners.user_id'])
         .where('leagues.id', '=', leagueId)
         .executeTakeFirst();
       
@@ -127,6 +127,55 @@ export class TeamsService {
       return league.user_id.toString() === userId;
     } catch (error) {
       throw new Error(`Failed to check if user is league manager: ${error}`);
+    }
+  }
+
+  /**
+   * Checks if a user is a member of a team
+   */
+  async isTeamMember(teamId: string, userId: string): Promise<boolean> {
+    try {
+      const member = await this.db.selectFrom('team_members')
+        .selectAll()
+        .where('team_id', '=', teamId)
+        .where('user_id', '=', userId)
+        .where('status', '=', 'active')
+        .executeTakeFirst();
+      
+      return !!member;
+    } catch (error) {
+      throw new Error(`Failed to check if user is team member: ${error}`);
+    }
+  }
+
+  /**
+   * Checks if a user is a member of a league
+   */
+  async isLeagueMember(leagueId: string, userId: string): Promise<boolean> {
+    try {
+      // Check if user is in league_members table
+      const directMember = await this.db.selectFrom('league_members')
+        .select('id')
+        .where('league_id', '=', leagueId)
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+      
+      if (directMember) {
+        return true;
+      }
+      
+      // Check if user is part of a team in the league
+      const teamMember = await this.db.selectFrom('team_members')
+        .innerJoin('teams', 'teams.id', 'team_members.team_id')
+        .select('team_members.id')
+        .where('teams.league_id', '=', leagueId)
+        .where('team_members.user_id', '=', userId)
+        .where('team_members.status', '=', 'active')
+        .executeTakeFirst();
+      
+      return !!teamMember;
+    } catch (error) {
+      throw new Error(`Failed to check if user is league member: ${error}`);
     }
   }
 

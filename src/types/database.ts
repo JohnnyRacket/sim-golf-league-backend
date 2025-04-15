@@ -7,12 +7,16 @@ export type LeagueStatus = 'pending' | 'active' | 'completed';
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type LeagueMemberRole = 'player' | 'spectator' | 'manager';
+export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface Database {
   users: UserTable;
-  managers: ManagerTable;
+  owners: OwnerTable;
   locations: LocationTable;
   leagues: LeagueTable;
+  league_members: LeagueMemberTable;
+  league_membership_requests: LeagueMembershipRequestTable;
   teams: TeamTable;
   team_members: TeamMemberTable;
   team_join_requests: TeamJoinRequestTable;
@@ -31,7 +35,7 @@ export interface UserTable {
   updated_at: Generated<Date>;
 }
 
-export interface ManagerTable {
+export interface OwnerTable {
   id: string;
   user_id: string;
   name: string;
@@ -41,7 +45,7 @@ export interface ManagerTable {
 
 export interface LocationTable {
   id: string;
-  manager_id: string;
+  owner_id: string;
   name: string;
   address: string;
   created_at: Generated<Date>;
@@ -58,6 +62,27 @@ export interface LeagueTable {
   max_teams: number;
   simulator_settings?: Record<string, any>;
   status: LeagueStatus;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface LeagueMemberTable {
+  id: string;
+  league_id: string;
+  user_id: string;
+  role: LeagueMemberRole;
+  joined_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface LeagueMembershipRequestTable {
+  id: string;
+  league_id: string;
+  user_id: string;
+  requested_role: LeagueMemberRole;
+  status: LeagueRequestStatus;
+  message?: string;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
