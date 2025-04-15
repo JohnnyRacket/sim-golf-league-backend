@@ -12,8 +12,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test-in-container:e2e": "jest -i --config jest.e2e.config.js",
-    "test:e2e": "powershell -ExecutionPolicy Bypass -File ./e2e-test.ps1",
-    "test:e2e:bash": "bash ./e2e-test.sh"
+    "test:e2e": "node test/e2e/e2e-test.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
@@ -40,6 +39,7 @@
     "@types/node": "^22.14.1",
     "@types/pg": "^8.11.12",
     "@types/supertest": "^6.0.3",
+    "chalk": "^4.1.2",
     "jest": "^29.7.0",
     "supertest": "^7.1.0",
     "ts-jest": "^29.3.2",
