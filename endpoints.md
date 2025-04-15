@@ -143,6 +143,90 @@
   - 404: Team not found
   - 500: Internal server error
 
+### PUT /teams/:id/members/:memberId
+- **Description**: Update a team member's role (manager only)
+- **Auth Required**: Yes (manager role)
+- **Params**:
+  - `id`: Team ID
+  - `memberId`: Member ID
+- **Request Body**: 
+  - `role`: New role to assign ('member')
+- **Responses**:
+  - 200: Updated member
+  - 403: Not authorized
+  - 404: Team or member not found
+  - 500: Internal server error
+
+### DELETE /teams/:id/members/:memberId
+- **Description**: Remove a member from a team (manager only)
+- **Auth Required**: Yes (manager role)
+- **Params**:
+  - `id`: Team ID
+  - `memberId`: Member ID
+- **Responses**:
+  - 200: Success message
+  - 403: Not authorized
+  - 404: Team or member not found
+  - 500: Internal server error
+
+### POST /teams/join
+- **Description**: Request to join a team (must be a league member)
+- **Auth Required**: Yes
+- **Request Body**:
+  - `team_id`: Team ID
+- **Responses**:
+  - 201: Join request submitted
+  - 400: Bad request (already a member or team at capacity)
+  - 403: Not a league member
+  - 404: Team not found
+  - 500: Internal server error
+
+### GET /teams/:id/join-requests
+- **Description**: Get join requests for a team (team members or league managers)
+- **Auth Required**: Yes (manager role or team membership)
+- **Params**:
+  - `id`: Team ID
+- **Responses**:
+  - 200: Array of join requests
+  - 403: Not authorized
+  - 404: Team not found
+  - 500: Internal server error
+
+### POST /teams/:id/join-requests/:requestId/approve
+- **Description**: Approve a join request (team members or league managers)
+- **Auth Required**: Yes (manager role or team membership)
+- **Params**:
+  - `id`: Team ID
+  - `requestId`: Request ID
+- **Responses**:
+  - 200: Member added
+  - 400: Team at capacity
+  - 403: Not authorized
+  - 404: Team or request not found
+  - 500: Internal server error
+
+### POST /teams/:id/join-requests/:requestId/reject
+- **Description**: Reject a join request (team members or league managers)
+- **Auth Required**: Yes (manager role or team membership)
+- **Params**:
+  - `id`: Team ID
+  - `requestId`: Request ID
+- **Responses**:
+  - 200: Success message
+  - 403: Not authorized
+  - 404: Team or request not found
+  - 500: Internal server error
+
+### POST /teams/join-requests/:requestId/cancel
+- **Description**: Cancel your own pending join request
+- **Auth Required**: Yes
+- **Params**:
+  - `requestId`: Request ID
+- **Responses**:
+  - 200: Success message
+  - 404: Request not found or already processed
+  - 500: Internal server error
+
 ## Leagues
 
 ### GET /leagues
