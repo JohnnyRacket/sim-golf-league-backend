@@ -26,8 +26,8 @@
 ## Users
 
 ### GET /users
-- **Description**: Get all users (managers only)
-- **Auth Required**: Yes (manager role)
+- **Description**: Get all users (owners only)
+- **Auth Required**: Yes (owner role)
 - **Responses**:
   - 200: Array of users
   - 500: Internal server error
@@ -48,7 +48,7 @@
   - 500: Internal server error
 
 ### GET /users/:id
-- **Description**: Get user by ID (admin/manager or self only)
+- **Description**: Get user by ID (owner or self only)
 - **Auth Required**: Yes
 - **Params**: 
   - `id`: User ID
@@ -302,16 +302,17 @@
   - 404: League not found
   - 500: Internal server error
 
-### POST /leagues/request-membership
+### POST /leagues/:id/join
 - **Description**: Request to join a league with a specific role
 - **Auth Required**: Yes
+- **Params**:
+  - `id`: League ID
 - **Request Body**:
-  - `league_id`: League ID
   - `requested_role`: Role requested ('player', 'spectator', or 'manager')
   - `message`: (optional) Message to league managers
 - **Responses**:
   - 201: Success message
-  - 400: Bad request - invalid role request
+  - 400: Bad request - invalid role request or existing request/membership
   - 404: League not found
   - 500: Internal server error
 
@@ -373,7 +374,7 @@
   - 404: League or member not found
   - 500: Internal server error
 
-### GET /leagues/:id/requests
+### GET /leagues/:id/join-requests
 - **Description**: Get league membership requests (managers only)
 - **Auth Required**: Yes (league manager)
 - **Params**:
