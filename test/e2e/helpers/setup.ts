@@ -46,7 +46,7 @@ afterAll(async () => {
     await db.deleteFrom('teams').execute();
     await db.deleteFrom('leagues').execute();
     await db.deleteFrom('locations').execute();
-    await db.deleteFrom('managers').execute();
+    await db.deleteFrom('owners').execute();
     await db.deleteFrom('users').execute();
     
     // Close database connection

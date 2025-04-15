@@ -124,13 +124,12 @@ export interface MatchTable {
 
 export interface StatsTable {
   id: Generated<number>;
-  user_id: string;
+  team_id: string;
   league_id: string;
   matches_played: number;
   matches_won: number;
-  total_score: number;
-  average_score: number;
-  handicap: number;
+  matches_lost: number;
+  matches_drawn: number;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

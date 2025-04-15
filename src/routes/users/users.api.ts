@@ -18,9 +18,9 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Initialize service
   const usersService = new UsersService(db);
 
-  // Get all users (admin/manager only)
+  // Get all users (admin/owner only)
   fastify.get('/', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['owner']),
     schema: {
       response: {
         200: userListSchema,
@@ -81,7 +81,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get user by ID (admin/manager or self only)
+  // Get user by ID (admin/owner or self only)
   fastify.get('/:id', {
     schema: {
       params: userIdParamsSchema,
@@ -96,8 +96,8 @@ export async function userRoutes(fastify: FastifyInstance) {
     const { id } = request.params;
 
     try {
-      // Check if user is requesting their own data or is a manager
-      if (request.user.id.toString() !== id && !request.user.roles.includes('manager')) {
+      // Check if user is requesting their own data or is an owner
+      if (request.user.id.toString() !== id && !request.user.roles.includes('owner')) {
         reply.code(403).send({ error: 'Forbidden' });
         return;
       }

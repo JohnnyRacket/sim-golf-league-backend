@@ -1,192 +1,104 @@
-// User data types
-export interface UserProfile {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-  created_at: Date;
-  updated_at: Date;
-  is_manager?: boolean;
-  manager_details?: ManagerDetails | null;
-}
+import { Static, Type } from '@sinclair/typebox';
 
-export interface ManagerDetails {
-  id: string;
-  name: string;
-}
+// Basic user info (for lists, etc.)
+export const userBasicSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  username: Type.String(),
+  email: Type.String({ format: 'email' }),
+  created_at: Type.String({ format: 'date-time' }),
+  updated_at: Type.String({ format: 'date-time' })
+});
 
-export interface UpdateUserBody {
-  username?: string;
-  email?: string;
-}
+// Extended user profile info (for /me)
+export const userProfileSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  username: Type.String(),
+  email: Type.String({ format: 'email' }),
+  role: Type.String(), // Consider using Type.Enum if possible
+  created_at: Type.String({ format: 'date-time' }),
+  updated_at: Type.String({ format: 'date-time' }),
+  is_owner: Type.Boolean(),
+  owner_details: Type.Optional(Type.Object({ // owner_details is optional
+    id: Type.String({ format: 'uuid' }),
+    name: Type.String()
+  }))
+});
 
-// Team data for user dashboard
-export interface UserTeam {
-  team_id: string;
-  team_name: string;
-  member_role: string;
-  league_id: string;
-  league_name: string;
-  league_status: string;
-}
+// List of users
+export const userListSchema = Type.Array(userBasicSchema);
 
-// Match data for user dashboard
-export interface UserMatch {
-  id: string;
-  match_date: Date;
-  status: string;
-  home_team_id: string;
-  home_team_name: string;
-  away_team_id: string;
-  away_team_name: string;
-  home_team_score?: number;
-  away_team_score?: number;
-}
+// Schema for updating user data
+export const updateUserSchema = Type.Object({
+  username: Type.Optional(Type.String()),
+  email: Type.Optional(Type.String({ format: 'email' })), 
+  // Add other updatable fields as needed (e.g., password)
+});
 
-// Stats data for user
-export interface UserStats {
-  matches_played: number;
-  matches_won: number;
-  average_score: number;
-  handicap: number;
-}
+// Schema for user teams (used in dashboard)
+const userTeamSchema = Type.Object({
+  team_id: Type.String({ format: 'uuid' }),
+  team_name: Type.String(),
+  member_role: Type.String(),
+  league_id: Type.String({ format: 'uuid' }),
+  league_name: Type.String(),
+  league_status: Type.String()
+});
 
-// Dashboard data
-export interface UserDashboard {
-  teams: UserTeam[];
-  upcomingMatches: UserMatch[];
-  recentMatches: UserMatch[];
-  stats: UserStats;
-}
+// Schema for user matches (base, used in dashboard)
+const userMatchBaseSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  match_date: Type.String({ format: 'date-time' }),
+  status: Type.String(),
+  home_team_id: Type.String({ format: 'uuid' }),
+  home_team_name: Type.String(),
+  away_team_id: Type.String({ format: 'uuid' }),
+  away_team_name: Type.String()
+});
 
-// Schema components
-export const managerDetailsSchema = {
-  type: ['object', 'null'],
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    name: { type: 'string' }
-  }
-};
+// Schema for user matches with score (used in dashboard)
+const userMatchWithScoreSchema = Type.Intersect([
+  userMatchBaseSchema,
+  Type.Object({
+    home_team_score: Type.Integer(),
+    away_team_score: Type.Integer()
+  })
+]);
 
-export const userTeamSchema = {
-  type: 'object',
-  properties: {
-    team_id: { type: 'string', format: 'uuid' },
-    team_name: { type: 'string' },
-    member_role: { type: 'string' },
-    league_id: { type: 'string', format: 'uuid' },
-    league_name: { type: 'string' },
-    league_status: { type: 'string' }
-  }
-};
+// Schema for user stats (placeholder for now)
+const userStatsSchema = Type.Object({
+  matches_played: Type.Integer(),
+  matches_won: Type.Integer(),
+  average_score: Type.Number(),
+  handicap: Type.Number()
+});
 
-export const userMatchBaseSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    match_date: { type: 'string', format: 'date-time' },
-    status: { type: 'string' },
-    home_team_id: { type: 'string', format: 'uuid' },
-    home_team_name: { type: 'string' },
-    away_team_id: { type: 'string', format: 'uuid' },
-    away_team_name: { type: 'string' }
-  }
-};
 
-export const userMatchWithScoreSchema = {
-  type: 'object',
-  properties: {
-    ...userMatchBaseSchema.properties,
-    home_team_score: { type: 'number' },
-    away_team_score: { type: 'number' }
-  }
-};
+// Schema for the dashboard data
+export const userDashboardSchema = Type.Object({
+  // user_id: Type.String({ format: 'uuid' }), // Add if needed
+  teams: Type.Array(userTeamSchema),
+  upcoming_matches: Type.Array(userMatchBaseSchema),
+  recent_matches: Type.Array(userMatchWithScoreSchema),
+  league_summaries: Type.Array(Type.Any()), // Adjust if league summaries are implemented
+});
 
-export const userStatsSchema = {
-  type: 'object',
-  properties: {
-    matches_played: { type: 'number' },
-    matches_won: { type: 'number' },
-    average_score: { type: 'number' },
-    handicap: { type: 'number' }
-  }
-};
+// Request parameter schemas
+export const userIdParamsSchema = Type.Object({
+  id: Type.String({ format: 'uuid' })
+});
 
-// Response schemas
-export const userBasicSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    username: { type: 'string' },
-    email: { type: 'string', format: 'email' },
-    created_at: { type: 'string', format: 'date-time' },
-    updated_at: { type: 'string', format: 'date-time' }
-  }
-};
+// Generic response schemas
+export const errorResponseSchema = Type.Object({
+  error: Type.String()
+});
 
-export const userListSchema = {
-  type: 'array',
-  items: userBasicSchema
-};
+export const successMessageSchema = Type.Object({
+  message: Type.String()
+});
 
-export const userProfileSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    username: { type: 'string' },
-    email: { type: 'string', format: 'email' },
-    created_at: { type: 'string', format: 'date-time' },
-    updated_at: { type: 'string', format: 'date-time' },
-    is_manager: { type: 'boolean' },
-    manager_details: managerDetailsSchema
-  }
-};
 
-export const updateUserSchema = {
-  type: 'object',
-  properties: {
-    username: { type: 'string', minLength: 3 },
-    email: { type: 'string', format: 'email' }
-  }
-};
-
-export const userIdParamsSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' }
-  },
-  required: ['id']
-};
-
-export const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' }
-  }
-};
-
-export const successMessageSchema = {
-  type: 'object',
-  properties: {
-    message: { type: 'string' }
-  }
-};
-
-export const userDashboardSchema = {
-  type: 'object',
-  properties: {
-    teams: {
-      type: 'array',
-      items: userTeamSchema
-    },
-    upcomingMatches: {
-      type: 'array',
-      items: userMatchBaseSchema
-    },
-    recentMatches: {
-      type: 'array',
-      items: userMatchWithScoreSchema
-    },
-    stats: userStatsSchema
-  }
-}; 
+// Types derived from schemas
+export type UserBasic = Static<typeof userBasicSchema>;
+export type UserProfile = Static<typeof userProfileSchema>;
+export type UpdateUserBody = Static<typeof updateUserSchema>;
+export type UserDashboard = Static<typeof userDashboardSchema>; 

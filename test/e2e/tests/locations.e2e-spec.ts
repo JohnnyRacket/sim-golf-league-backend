@@ -1,197 +1,169 @@
-import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeAll } from '@jest/globals';
 import { api, seedData } from '../helpers/setup';
-import { v4 as uuidv4 } from 'uuid';
 
 describe('Locations API (E2E)', () => {
   let locationId: string;
-  
-  // Helper function to login as admin
-  async function loginAsAdmin() {
-    await api.login('admin@example.com', 'admin123');
-  }
-  
-  // Helper function to login as user
-  async function loginAsUser() {
-    await api.login('user1@example.com', 'password123');
-  }
+  let adminId: string;
+  let testLocationName = 'Test Location for E2E';
 
   beforeAll(() => {
-    // Get ID from seeded data for testing
+    // Get IDs from seeded data for testing
     locationId = seedData.locations[0].id;
+    adminId = seedData.users.find(u => u.email === 'admin@example.com')?.id || seedData.users[0].id;
   });
 
-  describe('GET /locations', () => {
-    beforeEach(async () => {
-      await loginAsUser();
+  // Helper function to login as admin (who is also an owner)
+  async function loginAsAdmin() {
+    const response = await api.post('/auth/login', {
+      email: 'admin@example.com',
+      password: 'admin123'
     });
+    api.setToken(response.data.token);
+    return response.data.token;
+  }
+  
+  // Helper function to login as regular user
+  async function loginAsUser() {
+    const response = await api.post('/auth/login', {
+      email: 'user1@example.com',
+      password: 'password123'
+    });
+    api.setToken(response.data.token);
+    return response.data.token;
+  }
 
-    it('should return all locations when authenticated', async () => {
+  describe('Authentication requirements', () => {
+    test('Authentication is required to view locations list', async () => {
+      // Clear any existing token
+      api.clearToken();
+      
+      // Try to access locations without authentication
       const response = await api.get('/locations');
       
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.data)).toBe(true);
-      expect(response.data.length).toBeGreaterThan(0);
-      expect(response.data[0]).toHaveProperty('id');
-      expect(response.data[0]).toHaveProperty('name');
-      expect(response.data[0]).toHaveProperty('address');
-    });
-  });
-  
-  describe('GET /locations/:id', () => {
-    beforeEach(async () => {
+      // API requires authentication
+      expect(response.status).toBe(401);
+      expect(response.data).toHaveProperty('error');
+      
+      // Verify authenticated access works
       await loginAsUser();
+      const authResponse = await api.get('/locations');
+      expect(authResponse.status).toBe(200);
+      expect(Array.isArray(authResponse.data)).toBe(true);
     });
 
-    it('should return a specific location by ID', async () => {
+    test('Authentication is required to view location details', async () => {
+      // Clear any existing token
+      api.clearToken();
+      
+      // Try to access a specific location
       const response = await api.get(`/locations/${locationId}`);
       
-      expect(response.status).toBe(200);
-      expect(response.data).toHaveProperty('id', locationId);
-      expect(response.data).toHaveProperty('name');
-      expect(response.data).toHaveProperty('address');
-      expect(response.data).toHaveProperty('city');
-      expect(response.data).toHaveProperty('state');
-      expect(response.data).toHaveProperty('zip');
-      expect(response.data).toHaveProperty('country');
-    });
-    
-    it('should return 404 for non-existent location ID', async () => {
-      // Use a valid UUID format that doesn't exist in the database
-      const nonExistentId = uuidv4();
-      const response = await api.get(`/locations/${nonExistentId}`);
+      expect(response.status).toBe(401);
+      expect(response.data).toHaveProperty('error');
       
-      expect(response.status).toBe(404);
+      // Verify authenticated access works
+      await loginAsUser();
+      const authResponse = await api.get(`/locations/${locationId}`);
+      expect(authResponse.status).toBe(200);
+      expect(authResponse.data).toHaveProperty('id', locationId);
     });
   });
-  
-  describe('POST /locations', () => {
-    beforeEach(async () => {
-      await loginAsAdmin();
-    });
 
-    it('should create a new location when authenticated as admin', async () => {
-      const newLocation = {
-        name: 'New Golf Club',
-        address: '123 Fairway Dr',
-        city: 'Golf Town',
-        state: 'FL',
-        zip: '33333',
-        country: 'USA'
-      };
-      
-      const response = await api.post('/locations', newLocation);
-      
-      expect(response.status).toBe(201);
-      expect(response.data).toHaveProperty('id');
-      expect(response.data).toHaveProperty('message', 'Location created successfully');
-    });
-    
-    it('should reject location creation with invalid data', async () => {
-      const invalidLocation = {
-        // Missing required fields
-        address: '123 Fairway Dr',
-        city: 'Golf Town'
-      };
-      
-      const response = await api.post('/locations', invalidLocation);
-      
-      expect(response.status).toBe(400);
-    });
-    
-    it('should reject location creation when authenticated as regular user', async () => {
+  describe('Authorization checks', () => {
+    test('Regular users cannot create locations', async () => {
       await loginAsUser();
       
       const newLocation = {
-        name: 'New Golf Club',
-        address: '123 Fairway Dr',
-        city: 'Golf Town',
-        state: 'FL',
-        zip: '33333',
-        country: 'USA'
+        name: testLocationName,
+        address: '456 Test Street'
       };
       
       const response = await api.post('/locations', newLocation);
       
       expect(response.status).toBe(403);
-    });
-  });
-  
-  describe('PUT /locations/:id', () => {
-    let createdLocationId: string;
-    
-    beforeEach(async () => {
-      await loginAsAdmin();
-      
-      // Create a location for testing updates
-      const newLocation = {
-        name: 'Test Update Location',
-        address: '456 Bunker Ave',
-        city: 'Test City',
-        state: 'TX',
-        zip: '77777',
-        country: 'USA'
-      };
-      
-      const createResponse = await api.post('/locations', newLocation);
-      createdLocationId = createResponse.data.id;
+      expect(response.data).toHaveProperty('error');
     });
 
-    it('should update a location when authenticated as admin', async () => {
-      const updatedLocation = {
-        name: 'Updated Golf Club',
-        address: '789 Green Path',
-        city: 'New City'
+    test('Only admin can create locations', async () => {
+      await loginAsAdmin();
+      
+      const newLocation = {
+        name: testLocationName,
+        address: '456 Test Street'
       };
       
-      const response = await api.put(`/locations/${createdLocationId}`, updatedLocation);
+      const response = await api.post('/locations', newLocation);
+      
+      expect(response.status).toBe(201);
+      expect(response.data).toHaveProperty('message', 'Location created successfully');
+      expect(response.data).toHaveProperty('id');
+    });
+
+    test('Regular users cannot update locations', async () => {
+      await loginAsUser();
+      
+      const updateData = {
+        name: 'Updated Location Name'
+      };
+      
+      const response = await api.put(`/locations/${locationId}`, updateData);
+      
+      expect(response.status).toBe(403);
+      expect(response.data).toHaveProperty('error');
+    });
+
+    test('Regular users cannot delete locations', async () => {
+      await loginAsUser();
+      
+      const response = await api.delete(`/locations/${locationId}`);
+      
+      expect(response.status).toBe(403);
+      expect(response.data).toHaveProperty('error');
+    });
+  });
+
+  describe('Location management', () => {
+    let createdLocationId: string;
+    
+    test('Admin can create a new location', async () => {
+      await loginAsAdmin();
+      
+      const newLocation = {
+        name: 'Test Location for Management',
+        address: '789 Test Boulevard'
+      };
+      
+      const response = await api.post('/locations', newLocation);
+      
+      expect(response.status).toBe(201);
+      expect(response.data).toHaveProperty('message', 'Location created successfully');
+      expect(response.data).toHaveProperty('id');
+      
+      createdLocationId = response.data.id;
+    });
+    
+    test('Admin can update a location', async () => {
+      await loginAsAdmin();
+      
+      const updateData = {
+        name: 'Updated Test Location',
+        address: '789 Updated Boulevard'
+      };
+      
+      const response = await api.put(`/locations/${createdLocationId}`, updateData);
       
       expect(response.status).toBe(200);
       expect(response.data).toHaveProperty('message', 'Location updated successfully');
       
       // Verify the update
       const getResponse = await api.get(`/locations/${createdLocationId}`);
-      expect(getResponse.data.name).toBe('Updated Golf Club');
-      expect(getResponse.data.address).toBe('789 Green Path');
-      expect(getResponse.data.city).toBe('New City');
-      // Existing fields should remain unchanged
-      expect(getResponse.data.state).toBe('TX');
-      expect(getResponse.data.zip).toBe('77777');
+      expect(getResponse.data).toHaveProperty('name', 'Updated Test Location');
+      expect(getResponse.data).toHaveProperty('address', '789 Updated Boulevard');
     });
     
-    it('should reject location update when authenticated as regular user', async () => {
-      await loginAsUser();
-      
-      const updatedLocation = {
-        name: 'Hacker Update Attempt'
-      };
-      
-      const response = await api.put(`/locations/${createdLocationId}`, updatedLocation);
-      
-      expect(response.status).toBe(403);
-    });
-  });
-  
-  describe('DELETE /locations/:id', () => {
-    let createdLocationId: string;
-    
-    beforeEach(async () => {
+    test('Admin can delete a location with no leagues', async () => {
       await loginAsAdmin();
       
-      // Create a location for testing deletion
-      const newLocation = {
-        name: 'Test Delete Location',
-        address: '999 Delete Dr',
-        city: 'Delete City',
-        state: 'DC',
-        zip: '99999',
-        country: 'USA'
-      };
-      
-      const createResponse = await api.post('/locations', newLocation);
-      createdLocationId = createResponse.data.id;
-    });
-
-    it('should delete a location when authenticated as admin', async () => {
       const response = await api.delete(`/locations/${createdLocationId}`);
       
       expect(response.status).toBe(200);
@@ -202,22 +174,41 @@ describe('Locations API (E2E)', () => {
       expect(getResponse.status).toBe(404);
     });
     
-    it('should reject location deletion when authenticated as regular user', async () => {
-      await loginAsUser();
-      
-      const response = await api.delete(`/locations/${createdLocationId}`);
-      
-      expect(response.status).toBe(403);
-    });
-    
-    it('should return 404 when trying to delete non-existent location', async () => {
+    test('Admin cannot delete a location with associated leagues', async () => {
       await loginAsAdmin();
       
-      // Use a valid UUID format that doesn't exist in the database
-      const nonExistentId = uuidv4();
-      const response = await api.delete(`/locations/${nonExistentId}`);
+      // Try to delete the seeded location that has leagues
+      const response = await api.delete(`/locations/${locationId}`);
+      
+      expect(response.status).toBe(400);
+      expect(response.data).toHaveProperty('error');
+      expect(response.data.error).toContain('leagues');
+    });
+  });
+
+  describe('Error handling', () => {
+    test('Returns 404 for non-existent location when authenticated', async () => {
+      await loginAsUser();
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+      
+      const response = await api.get(`/locations/${nonExistentId}`);
       
       expect(response.status).toBe(404);
+      expect(response.data).toHaveProperty('error', 'Location not found');
+    });
+    
+    test('Validates input when creating locations', async () => {
+      await loginAsAdmin();
+      
+      // Missing required fields
+      const invalidLocation = {
+        // Missing name and address
+      };
+      
+      const response = await api.post('/locations', invalidLocation);
+      
+      expect(response.status).toBe(400);
+      expect(response.data).toHaveProperty('error');
     });
   });
 }); 

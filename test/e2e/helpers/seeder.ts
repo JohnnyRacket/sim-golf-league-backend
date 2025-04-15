@@ -8,7 +8,7 @@ import {
   LeagueStatus, 
   MatchStatus 
 } from '../../../src/types/database';
-import { SeedData, SeedUser, SeedManager, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch } from './types';
+import { SeedData, SeedUser, SeedOwner, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch } from './types';
 
 // Use the SeedData interface directly
 type SeedResult = SeedData;
@@ -19,7 +19,7 @@ export async function seed(): Promise<SeedData> {
   // Store all created entities
   const result: SeedData = {
     users: [],
-    managers: [],
+    owners: [],
     locations: [],
     leagues: [],
     teams: [],
@@ -91,20 +91,20 @@ export async function seed(): Promise<SeedData> {
       role: 'user'
     });
     
-    // Create a manager (using admin user)
-    const managerId = uuidv4();
-    await db.insertInto('managers')
+    // Create an owner (using admin user)
+    const ownerId = uuidv4();
+    await db.insertInto('owners')
       .values({
-        id: managerId,
+        id: ownerId,
         user_id: adminId,
-        name: 'Test Manager'
+        name: 'Test Owner'
       })
       .execute();
     
-    result.managers.push({
-      id: managerId,
+    result.owners.push({
+      id: ownerId,
       user_id: adminId,
-      name: 'Test Manager'
+      name: 'Test Owner'
     });
     
     // Create a location
@@ -112,7 +112,7 @@ export async function seed(): Promise<SeedData> {
     await db.insertInto('locations')
       .values({
         id: locationId,
-        manager_id: managerId,
+        owner_id: ownerId,
         name: 'Test Golf Club',
         address: '123 Fairway Drive'
       })
@@ -120,7 +120,7 @@ export async function seed(): Promise<SeedData> {
     
     result.locations.push({
       id: locationId,
-      manager_id: managerId,
+      owner_id: ownerId,
       name: 'Test Golf Club',
       address: '123 Fairway Drive'
     });
@@ -283,7 +283,7 @@ export async function seed(): Promise<SeedData> {
         id: adminId, 
         username: 'admin',
         email: 'admin@example.com',
-        roles: ['admin', 'manager']
+        roles: ['admin', 'owner']
       }, secret, { expiresIn: '1h' }),
       
       user: jwt.sign({ 

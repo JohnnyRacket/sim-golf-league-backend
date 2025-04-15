@@ -39,11 +39,24 @@ describe('Authentication Flow (E2E)', () => {
       password: 'password123'
     });
     
+    // Check if we got a valid response with token
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.data).toHaveProperty('token');
+    expect(typeof loginResponse.data.token).toBe('string');
+    expect(loginResponse.data.token.length).toBeGreaterThan(10);
+    
+    console.log('Token received:', loginResponse.data.token ? 'Yes (length: ' + loginResponse.data.token.length + ')' : 'No');
+    
     // Set the token
     api.setToken(loginResponse.data.token);
     
     // Try accessing a protected route
-    const response = await api.get('/leagues');
+    const response = await api.get('/leagues/my');
+    
+    console.log('Protected route response status:', response.status);
+    if (response.status !== 200) {
+      console.log('Response error:', response.data);
+    }
     
     expect(response.status).toBe(200);
     expect(Array.isArray(response.data)).toBe(true);

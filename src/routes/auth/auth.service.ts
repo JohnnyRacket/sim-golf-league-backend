@@ -12,7 +12,7 @@ export class AuthService {
 
   constructor(db: Kysely<Database>) {
     this.db = db;
-    this.jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+    this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
   }
 
   /**
@@ -130,16 +130,16 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      // Check if user is a manager
-      const manager = await this.db.selectFrom('managers')
+      // Check if user is an owner
+      const owner = await this.db.selectFrom('owners')
         .select('id')
         .where('user_id', '=', userId)
         .executeTakeFirst();
 
       // Prepare roles array
       const roles = [user.role];
-      if (manager) {
-        roles.push('manager' as unknown as UserRole);
+      if (owner) {
+        roles.push('owner' as unknown as UserRole);
       }
 
       return {

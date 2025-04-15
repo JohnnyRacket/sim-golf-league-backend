@@ -1,4 +1,4 @@
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { Database, MatchTable } from "../../types/database";
 import { MatchStatus } from "../../types/enums";
 import { 
@@ -318,30 +318,45 @@ export class MatchesService {
   }
 
   /**
-   * Submits match results including player details
+   * Submits match results including player details and updates team stats
    */
   async submitMatchResults(
     matchId: string, 
     homeTeamScore: number, 
     awayTeamScore: number,
-    playerDetails: Record<string, any>
+    playerDetails: Record<string, any> 
   ): Promise<MatchTable | null> {
     try {
-      const result = await this.db.updateTable('matches')
-        .set({
-          home_team_score: homeTeamScore,
-          away_team_score: awayTeamScore,
-          player_details: playerDetails,
-          status: 'completed' as MatchStatus
-        })
-        .where('id', '=', matchId)
-        .returningAll()
-        .executeTakeFirst();
+      // Start transaction
+      const updatedMatch = await this.db.transaction().execute(async (transaction) => {
+        const match = await transaction.selectFrom('matches')
+          .select(['id', 'league_id', 'home_team_id', 'away_team_id'])
+          .where('id', '=', matchId)
+          .executeTakeFirst();
+
+        if (!match) {
+          throw new Error('Match not found for results submission.');
+        }
+        
+        // Update match scores and status
+        const result = await transaction.updateTable('matches')
+          .set({
+            home_team_score: homeTeamScore,
+            away_team_score: awayTeamScore,
+            player_details: playerDetails,
+            status: 'completed' as MatchStatus
+          })
+          .where('id', '=', matchId)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        
+        // Update team stats based on match outcome
+        await this.updateTeamStats(transaction, match.league_id, match.home_team_id, match.away_team_id, homeTeamScore, awayTeamScore);
+        
+        return result as any as MatchTable | null;
+      });
       
-      // Update player stats
-      await this.updatePlayerStats(matchId, playerDetails);
-      
-      return result as any as MatchTable | null;
+      return updatedMatch;
     } catch (error) {
       throw new Error(`Failed to submit match results: ${error}`);
     }
@@ -372,8 +387,8 @@ export class MatchesService {
       const match = await this.db.selectFrom('matches')
         .innerJoin('leagues', 'leagues.id', 'matches.league_id')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select('managers.user_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select('owners.user_id')
         .where('matches.id', '=', matchId)
         .executeTakeFirst();
       
@@ -395,8 +410,8 @@ export class MatchesService {
       // Use a single query with JOINs to get the manager info
       const manager = await this.db.selectFrom('leagues')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
-        .innerJoin('managers', 'managers.id', 'locations.manager_id')
-        .select('managers.user_id')
+        .innerJoin('owners', 'owners.id', 'locations.owner_id')
+        .select('owners.user_id')
         .where('leagues.id', '=', leagueId)
         .executeTakeFirst();
       
@@ -412,6 +427,8 @@ export class MatchesService {
 
   /**
    * Gets match summaries for a user across all their teams
+   * NOTE: This might need adjustment or removal depending on how user stats are handled now.
+   * Keeping it for now but it relies on player_details which is user-centric.
    */
   async getUserMatchSummaries(userId: string): Promise<UserMatchSummary[]> {
     try {
@@ -507,7 +524,7 @@ export class MatchesService {
               }
               
               // Update stats
-              stats.matches_played++;
+              stats.matches_played++; // This seems incorrect for game-level stats, should it track match appearances?
               stats.games_played++;
               stats.total_score += details.score || 0;
               
@@ -577,110 +594,65 @@ export class MatchesService {
     }
   }
 
-  // Helper method to update player stats
-  private async updatePlayerStats(matchId: string, playerDetails: Record<string, any>): Promise<void> {
+  // Helper method to update team stats after a match is completed
+  private async updateTeamStats(transaction: Transaction<Database>, leagueId: string, homeTeamId: string, awayTeamId: string, homeScore: number, awayScore: number): Promise<void> {
     try {
-      // Get match data
-      const match = await this.db.selectFrom('matches')
-        .select(['id', 'league_id'])
-        .where('id', '=', matchId)
-        .executeTakeFirst();
-      
-      if (!match) return;
-      
-      const leagueId = match.league_id;
-      
-      // Get all player IDs from the details
-      const playerIds = Object.keys(playerDetails);
-      if (playerIds.length === 0) return;
-      
-      // Get all team members in a single query
-      const teamMembers = await this.db.selectFrom('team_members')
-        .select(['id', 'user_id'])
-        .where('id', 'in', playerIds)
-        .execute();
-      
-      // Create a map of player ID to user ID
-      const playerToUserMap = new Map<string, string>();
-      teamMembers.forEach(tm => {
-        playerToUserMap.set(tm.id, tm.user_id);
-      });
-      
-      // Collect stats by user ID
-      const userStats = new Map<string, { games_played: number, games_won: number, total_score: number }>();
-      
-      // Process player details
-      for (const playerId in playerDetails) {
-        const userId = playerToUserMap.get(playerId);
-        if (!userId) continue;
-        
-        const playerData = playerDetails[playerId];
-        
-        if (!userStats.has(userId)) {
-          userStats.set(userId, { games_played: 0, games_won: 0, total_score: 0 });
-        }
-        
-        const stats = userStats.get(userId)!;
-        stats.games_played += 1;
-        
-        if (playerData.score !== undefined && playerData.score !== null) {
-          stats.total_score += playerData.score;
-          
-          // Determine win/loss based on opponent score
-          if (playerData.opponent_score !== undefined && playerData.opponent_score !== null && 
-              playerData.score > playerData.opponent_score) {
-            stats.games_won += 1;
-          }
-        }
+      // Determine win/loss/draw for each team
+      let homeWins = 0, homeLosses = 0, homeDraws = 0;
+      let awayWins = 0, awayLosses = 0, awayDraws = 0;
+
+      if (homeScore > awayScore) {
+        homeWins = 1;
+        awayLosses = 1;
+      } else if (awayScore > homeScore) {
+        awayWins = 1;
+        homeLosses = 1;
+      } else {
+        homeDraws = 1;
+        awayDraws = 1;
       }
-      
-      // Get all user IDs
-      const userIds = Array.from(userStats.keys());
-      if (userIds.length === 0) return;
-      
-      // Get existing stats for all users in a single query
-      const existingStats = await this.db.selectFrom('stats')
-        .select(['id', 'user_id', 'matches_played', 'matches_won', 'total_score'])
-        .where('user_id', 'in', userIds)
-        .where('league_id', '=', leagueId)
-        .execute();
-      
-      // Create a map of user ID to existing stats
-      const existingStatsMap = new Map();
-      existingStats.forEach(stat => {
-        existingStatsMap.set(stat.user_id, stat);
-      });
-      
-      // Process each user's stats
-      for (const [userId, stats] of userStats.entries()) {
-        const existingStat = existingStatsMap.get(userId);
-        
+
+      const teamsToUpdate = [
+        { teamId: homeTeamId, wins: homeWins, losses: homeLosses, draws: homeDraws },
+        { teamId: awayTeamId, wins: awayWins, losses: awayLosses, draws: awayDraws }
+      ];
+
+      for (const teamUpdate of teamsToUpdate) {
+        // Check if stats entry exists
+        const existingStat = await transaction.selectFrom('stats')
+          .select('id')
+          .where('team_id', '=', teamUpdate.teamId)
+          .where('league_id', '=', leagueId)
+          .executeTakeFirst();
+
         if (existingStat) {
           // Update existing stats
-          await this.db.updateTable('stats')
-            .set({
-              matches_played: existingStat.matches_played + stats.games_played,
-              matches_won: existingStat.matches_won + stats.games_won,
-              total_score: existingStat.total_score + stats.total_score
-            } as any)
+          await transaction.updateTable('stats')
+            .set((eb: any) => ({
+              matches_played: eb('matches_played', '+', 1),
+              matches_won: eb('matches_won', '+', teamUpdate.wins),
+              matches_lost: eb('matches_lost', '+', teamUpdate.losses),
+              matches_drawn: eb('matches_drawn', '+', teamUpdate.draws),
+            }))
             .where('id', '=', existingStat.id)
             .execute();
         } else {
-          // Create new stats
-          await this.db.insertInto('stats')
+          // Create new stats entry
+          await transaction.insertInto('stats')
             .values({
-              user_id: userId,
+              team_id: teamUpdate.teamId,
               league_id: leagueId,
-              matches_played: stats.games_played,
-              matches_won: stats.games_won,
-              total_score: stats.total_score,
-              handicap: 0 // Default handicap
-            } as any)
+              matches_played: 1,
+              matches_won: teamUpdate.wins,
+              matches_lost: teamUpdate.losses,
+              matches_drawn: teamUpdate.draws,
+            })
             .execute();
         }
       }
     } catch (error) {
-      console.error('Error updating player stats:', error);
+      // Log error but don't let stats update failure break the main operation
+      console.error(`Error updating team stats for league ${leagueId}, teams ${homeTeamId} vs ${awayTeamId}:`, error);
     }
   }
 } 

@@ -251,6 +251,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
     try {
       const { id: teamId } = request.params;
       const { user_id, role = 'member' } = request.body;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -260,15 +261,15 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      // Check if user is authorized to manage this league - do this check FIRST
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
       
       if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to add members to this team' });
         return;
       }
       
-      // Check if team has available spots
+      // Now that authorization is confirmed, check if team has available spots
       const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
       
       if (!hasAvailableSpots) {
@@ -313,6 +314,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
     try {
       const { id: teamId, memberId } = request.params;
       const { role } = request.body;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -323,7 +325,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
       
       // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
       
       if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to update this team member' });
@@ -365,6 +367,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id: teamId, memberId } = request.params;
+      const userId = request.user.id.toString();
       
       // Get team to check league
       const team = await teamsService.getTeamById(teamId);
@@ -374,8 +377,8 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+      // Check if user is authorized to manage this league - do this check FIRST
+      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
       
       if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to remove members from this team' });
@@ -548,7 +551,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
         return;
       }
       
-      // Check if team has available spots
+      // Only after authorization, check if team has available spots
       const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
       
       if (!hasAvailableSpots) {

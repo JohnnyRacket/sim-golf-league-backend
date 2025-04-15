@@ -13,7 +13,7 @@ export interface SeedUser {
   role: UserRole;
 }
 
-export interface SeedManager {
+export interface SeedOwner {
   id: string;
   user_id: string;
   name: string;
@@ -21,7 +21,7 @@ export interface SeedManager {
 
 export interface SeedLocation {
   id: string;
-  manager_id: string;
+  owner_id: string;
   name: string;
   address: string;
   city?: string;
@@ -75,7 +75,7 @@ export interface SeedTokens {
 
 export interface SeedData {
   users: SeedUser[];
-  managers: SeedManager[];
+  owners: SeedOwner[];
   locations: SeedLocation[];
   leagues: SeedLeague[];
   teams: SeedTeam[];

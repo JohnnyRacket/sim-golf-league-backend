@@ -79,8 +79,7 @@ CREATE TABLE league_membership_requests (
     message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(league_id, user_id, requested_role, status) 
-        WHERE status = 'pending'
+    UNIQUE(league_id, user_id, requested_role)
 );
 
 -- Create teams table
@@ -114,8 +113,7 @@ CREATE TABLE team_join_requests (
     status league_request_status NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(team_id, user_id, status) 
-        WHERE status = 'pending'
+    UNIQUE(team_id, user_id)
 );
 
 -- Create matches table
@@ -138,14 +136,15 @@ CREATE TABLE matches (
 -- Create stats table with proper UUID references
 CREATE TABLE stats (
     id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id),
-    league_id UUID NOT NULL REFERENCES leagues(id),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
     matches_played INTEGER NOT NULL DEFAULT 0,
     matches_won INTEGER NOT NULL DEFAULT 0,
-    total_score INTEGER NOT NULL DEFAULT 0,
+    matches_lost INTEGER NOT NULL DEFAULT 0,
+    matches_drawn INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, league_id)
+    UNIQUE(team_id, league_id)
 );
 
 -- Create communications table with PostgreSQL syntax

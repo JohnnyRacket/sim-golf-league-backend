@@ -43,7 +43,7 @@ export class UsersService {
   }
 
   /**
-   * Get current user profile (with manager info)
+   * Get current user profile (with owner info)
    */
   async getCurrentUserProfile(userId: string): Promise<UserProfile | null> {
     try {
@@ -56,17 +56,24 @@ export class UsersService {
         return null;
       }
       
-      // Check if user is a manager
-      const manager = await this.db.selectFrom('managers')
+      // Check if user is an owner
+      const owner = await this.db.selectFrom('owners')
         .select(['id', 'name'])
         .where('user_id', '=', userId)
         .executeTakeFirst();
-      
-      return {
+        
+      // Manually construct the object matching UserProfile type
+      const userProfileData = {
         ...user,
-        is_manager: !!manager,
-        manager_details: manager || null
-      } as UserProfile;
+        role: user.role as string, // Cast enum to string if necessary
+        created_at: user.created_at.toISOString(), // Convert Date to string
+        updated_at: user.updated_at.toISOString(), // Convert Date to string
+        is_owner: !!owner,
+        owner_details: owner ? { id: owner.id, name: owner.name } : undefined
+      };
+
+      return userProfileData as UserProfile; // Assert as UserProfile
+
     } catch (error) {
       throw new Error(`Failed to get user profile: ${error}`);
     }
@@ -157,28 +164,24 @@ export class UsersService {
         .limit(5)
         .execute();
       
-      // Get player stats summary
-      const stats = await this.db.selectFrom('stats')
-        .select([
-          'matches_played',
-          'matches_won',
-          'average_score',
-          'handicap'
-        ])
-        .where('user_id', '=', userId)
-        .executeTakeFirst() || { 
-          matches_played: 0, 
-          matches_won: 0, 
-          average_score: 0, 
-          handicap: 0 
-        };
-      
-      return {
-        teams,
-        upcomingMatches,
-        recentMatches,
-        stats
+      // Return dashboard data without stats
+      const dashboardData = {
+        teams: teams.map(t => ({ ...t, league_status: t.league_status as string })), // Ensure enums match string type if needed
+        upcoming_matches: upcomingMatches.map(m => ({
+          ...m,
+          match_date: m.match_date.toISOString(), // Convert Date to string
+          status: m.status as string
+        })),
+        recent_matches: recentMatches.map(m => ({
+          ...m,
+          match_date: m.match_date.toISOString(), // Convert Date to string
+          status: m.status as string
+        })),
+        league_summaries: [], // Provide empty array for now
       };
+
+      return dashboardData as UserDashboard; // Assert final structure matches type
+
     } catch (error) {
       throw new Error(`Failed to get user dashboard: ${error}`);
     }

@@ -545,7 +545,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
   });
 
   // Get membership requests for a league (managers only)
-  fastify.get('/:id/requests', {
+  fastify.get('/:id/join-requests', {
     schema: {
       description: 'Get league membership requests (managers only)',
       tags: ['leagues'],
@@ -599,7 +599,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
   });
 
   // Create a membership request
-  fastify.post<{ Body: CreateMembershipRequestBody }>('/request-membership', {
+  fastify.post<{ Body: CreateMembershipRequestBody }>('/:id/join', {
     schema: {
       description: 'Request to join a league with a specific role',
       tags: ['leagues'],
@@ -613,11 +613,12 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     }
   }, async (request, reply) => {
     try {
-      const { league_id, requested_role, message } = request.body;
+      const { id } = request.params as { id: string };
+      const { requested_role, message } = request.body;
       const userId = request.user.id.toString();
       
       // Check if league exists
-      const league = await leaguesService.getLeagueById(league_id);
+      const league = await leaguesService.getLeagueById(id);
       
       if (!league) {
         reply.code(404).send({ error: 'League not found' });
@@ -627,7 +628,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       // If requesting manager role, check if the league is recently created
       if (requested_role === 'manager') {
         // Check if the league has at least one manager already
-        const hasManagers = await leaguesService.getLeagueMembers(league_id)
+        const hasManagers = await leaguesService.getLeagueMembers(id)
           .then(members => members.some(m => m.role === 'manager'));
         
         if (hasManagers) {
@@ -643,7 +644,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       
       try {
         await leaguesService.createLeagueMembershipRequest(
-          league_id,
+          id,
           userId,
           requested_role,
           message
