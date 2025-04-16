@@ -9,6 +9,7 @@ export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type LeagueMemberRole = 'player' | 'spectator' | 'manager';
 export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type NotificationType = 'league_invite' | 'team_invite' | 'match_reminder' | 'match_result' | 'team_join_request' | 'league_join_request' | 'system_message';
 
 export interface Database {
   users: UserTable;
@@ -23,6 +24,7 @@ export interface Database {
   matches: MatchTable;
   stats: StatsTable;
   communications: CommunicationTable;
+  notifications: NotificationTable;
 }
 
 export interface UserTable {
@@ -150,6 +152,18 @@ export interface TeamJoinRequestTable {
   team_id: string;
   user_id: string;
   status: JoinRequestStatus;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface NotificationTable {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  action_id?: string;
+  is_read: boolean;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 } 

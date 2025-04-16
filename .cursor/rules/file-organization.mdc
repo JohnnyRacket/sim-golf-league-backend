@@ -1,0 +1,8 @@
+---
+description: Tells you how to lay out files in the project and organize things
+globs: 
+alwaysApply: false
+---
+Making new files, apis, services, etc:
+
+If making a new feature with its own route, add it to the routes folder and follow the file naming schema: *.api.ts, *.service.ts, and *.types.ts

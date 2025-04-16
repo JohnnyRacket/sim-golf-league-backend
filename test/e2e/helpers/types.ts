@@ -3,7 +3,8 @@ import {
   TeamMemberRole, 
   TeamStatus, 
   LeagueStatus, 
-  MatchStatus 
+  MatchStatus,
+  NotificationType
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -68,6 +69,16 @@ export interface SeedMatch {
   player_details: Record<string, any>;
 }
 
+export interface SeedNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  action_id?: string;
+  is_read: boolean;
+}
+
 export interface SeedTokens {
   admin: string;
   user: string;
@@ -81,5 +92,6 @@ export interface SeedData {
   teams: SeedTeam[];
   teamMembers: SeedTeamMember[];
   matches: SeedMatch[];
+  notifications: SeedNotification[];
   tokens: SeedTokens;
 } 

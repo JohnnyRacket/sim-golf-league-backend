@@ -5,6 +5,7 @@ import { leagueRoutes } from './leagues/leagues.api';
 import { teamRoutes } from './teams/teams.api';
 import { locationRoutes } from './locations/locations.api';
 import { matchRoutes } from './matches/matches.api';
+import { notificationRoutes } from './notifications/notifications.api';
 import { authenticate } from '../middleware/auth';
 
 export async function registerRoutes(fastify: FastifyInstance) {
@@ -22,5 +23,6 @@ export async function registerRoutes(fastify: FastifyInstance) {
     protectedRoutes.register(teamRoutes, { prefix: '/teams' });
     protectedRoutes.register(matchRoutes, { prefix: '/matches' });
     protectedRoutes.register(locationRoutes, { prefix: '/locations' });
+    protectedRoutes.register(notificationRoutes, { prefix: '/notifications' });
   });
 } 

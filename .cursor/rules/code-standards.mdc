@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+When writing new code:
+- Never use any in typescript always type things.
+- If making a change, make precise surgical changes unless a major overhaul is truly needed

@@ -6,9 +6,10 @@ import {
   TeamMemberRole, 
   TeamStatus, 
   LeagueStatus, 
-  MatchStatus 
+  MatchStatus,
+  NotificationType
 } from '../../../src/types/database';
-import { SeedData, SeedUser, SeedOwner, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch } from './types';
+import { SeedData, SeedUser, SeedOwner, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch, SeedNotification } from './types';
 
 // Use the SeedData interface directly
 type SeedResult = SeedData;
@@ -25,6 +26,7 @@ export async function seed(): Promise<SeedData> {
     teams: [],
     teamMembers: [],
     matches: [],
+    notifications: [],
     tokens: {
       admin: '',
       user: ''
@@ -294,6 +296,77 @@ export async function seed(): Promise<SeedData> {
       }, secret, { expiresIn: '1h' })
     };
     
+    // Create notifications
+    // 1. Team invite notification for user1
+    const notification1Id = uuidv4();
+    await db.insertInto('notifications')
+      .values({
+        id: notification1Id,
+        user_id: user1Id,
+        title: 'Team Invitation',
+        body: 'You have been invited to join the Birdies team',
+        type: 'team_invite' as NotificationType,
+        action_id: team2Id,
+        is_read: false
+      })
+      .execute();
+    
+    result.notifications.push({
+      id: notification1Id,
+      user_id: user1Id,
+      title: 'Team Invitation',
+      body: 'You have been invited to join the Birdies team',
+      type: 'team_invite',
+      action_id: team2Id,
+      is_read: false
+    });
+
+    // 2. Match reminder notification for user1
+    const notification2Id = uuidv4();
+    await db.insertInto('notifications')
+      .values({
+        id: notification2Id,
+        user_id: user1Id,
+        title: 'Upcoming Match Reminder',
+        body: 'Your match against Birdies is scheduled for tomorrow',
+        type: 'match_reminder' as NotificationType,
+        action_id: match1Id,
+        is_read: true
+      })
+      .execute();
+    
+    result.notifications.push({
+      id: notification2Id,
+      user_id: user1Id,
+      title: 'Upcoming Match Reminder',
+      body: 'Your match against Birdies is scheduled for tomorrow',
+      type: 'match_reminder',
+      action_id: match1Id,
+      is_read: true
+    });
+
+    // 3. System notification for user2
+    const notification3Id = uuidv4();
+    await db.insertInto('notifications')
+      .values({
+        id: notification3Id,
+        user_id: user2Id,
+        title: 'Welcome to the League',
+        body: 'Welcome to the Spring 2024 League! Good luck with your games.',
+        type: 'system_message' as NotificationType,
+        is_read: false
+      })
+      .execute();
+    
+    result.notifications.push({
+      id: notification3Id,
+      user_id: user2Id,
+      title: 'Welcome to the League',
+      body: 'Welcome to the Spring 2024 League! Good luck with your games.',
+      type: 'system_message',
+      is_read: false
+    });
+
     console.log('Database seeding completed successfully');
     return result;
   } catch (error) {
