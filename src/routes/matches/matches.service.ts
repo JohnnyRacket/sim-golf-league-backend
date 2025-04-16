@@ -383,8 +383,41 @@ export class MatchesService {
    */
   async isLeagueManager(matchId: string, userId: string): Promise<boolean> {
     try {
-      // Use a single query with multiple JOINs
+      // First check if user is an admin (admins have league manager privileges)
+      const adminUser = await this.db.selectFrom('users')
+        .select('id')
+        .where('id', '=', userId)
+        .where('role', '=', 'admin')
+        .executeTakeFirst();
+      
+      if (adminUser) {
+        return true; // Admin users have league manager privileges
+      }
+      
+      // Get the league ID for this match
       const match = await this.db.selectFrom('matches')
+        .select('league_id')
+        .where('id', '=', matchId)
+        .executeTakeFirst();
+      
+      if (!match) {
+        return false;
+      }
+      
+      // Check if user is explicitly assigned as a league manager
+      const leagueMember = await this.db.selectFrom('league_members')
+        .select('id')
+        .where('user_id', '=', userId)
+        .where('league_id', '=', match.league_id)
+        .where('role', '=', 'manager')
+        .executeTakeFirst();
+      
+      if (leagueMember) {
+        return true;
+      }
+      
+      // Also check location owner (backward compatibility)
+      const isOwner = await this.db.selectFrom('matches')
         .innerJoin('leagues', 'leagues.id', 'matches.league_id')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
         .innerJoin('owners', 'owners.id', 'locations.owner_id')
@@ -392,11 +425,7 @@ export class MatchesService {
         .where('matches.id', '=', matchId)
         .executeTakeFirst();
       
-      if (!match) {
-        return false;
-      }
-      
-      return match.user_id.toString() === userId;
+      return isOwner ? isOwner.user_id.toString() === userId : false;
     } catch (error) {
       throw new Error(`Failed to check if user is league manager: ${error}`);
     }
@@ -407,19 +436,40 @@ export class MatchesService {
    */
   async getLeagueManager(leagueId: string): Promise<ManagerInfo | null> {
     try {
-      // Use a single query with JOINs to get the manager info
-      const manager = await this.db.selectFrom('leagues')
+      // First check if the user is an admin
+      const adminUser = await this.db.selectFrom('users')
+        .select('id as user_id')
+        .where('role', '=', 'admin')
+        .executeTakeFirst();
+      
+      if (adminUser) {
+        return { user_id: adminUser.user_id };
+      }
+      
+      // Check if there are league members with manager role
+      const leagueManager = await this.db.selectFrom('league_members')
+        .select('user_id')
+        .where('league_id', '=', leagueId)
+        .where('role', '=', 'manager')
+        .executeTakeFirst();
+      
+      if (leagueManager) {
+        return { user_id: leagueManager.user_id };
+      }
+      
+      // Fallback to the owner check from the previous implementation
+      const owner = await this.db.selectFrom('leagues')
         .innerJoin('locations', 'locations.id', 'leagues.location_id')
         .innerJoin('owners', 'owners.id', 'locations.owner_id')
         .select('owners.user_id')
         .where('leagues.id', '=', leagueId)
         .executeTakeFirst();
       
-      if (!manager) {
+      if (!owner) {
         return null;
       }
       
-      return { user_id: manager.user_id };
+      return { user_id: owner.user_id };
     } catch (error) {
       throw new Error(`Failed to get league manager: ${error}`);
     }

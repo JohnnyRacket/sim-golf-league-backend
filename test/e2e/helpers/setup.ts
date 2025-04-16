@@ -42,6 +42,7 @@ afterAll(async () => {
   try {
     // Clean up test data
     await db.deleteFrom('notifications').execute();
+    await db.deleteFrom('match_result_submissions').execute();
     await db.deleteFrom('matches').execute();
     await db.deleteFrom('team_members').execute();
     await db.deleteFrom('teams').execute();

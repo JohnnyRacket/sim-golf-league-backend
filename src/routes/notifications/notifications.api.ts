@@ -26,10 +26,11 @@ export async function notificationRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const userId = request.user.id.toString();
-      return await notificationsService.getUserNotifications(userId);
+      const notifications = await notificationsService.getUserNotifications(userId);
+      return notifications;
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 
@@ -53,7 +54,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       return { count };
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 
@@ -76,14 +77,13 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       const notification = await notificationsService.getNotificationById(id, userId);
       
       if (!notification) {
-        reply.code(404).send({ error: 'Notification not found' });
-        return;
+        return reply.code(404).send({ error: 'Notification not found' });
       }
       
       return notification;
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 
@@ -108,14 +108,13 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       const updated = await notificationsService.updateNotification(id, userId, updateData);
       
       if (!updated) {
-        reply.code(404).send({ error: 'Notification not found' });
-        return;
+        return reply.code(404).send({ error: 'Notification not found' });
       }
       
       return updated;
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 
@@ -134,7 +133,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       return { message: 'All notifications marked as read' };
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 
@@ -157,14 +156,13 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       const deleted = await notificationsService.deleteNotification(id, userId);
       
       if (!deleted) {
-        reply.code(404).send({ error: 'Notification not found' });
-        return;
+        return reply.code(404).send({ error: 'Notification not found' });
       }
       
       return { message: 'Notification deleted successfully' };
     } catch (error) {
       request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+      return reply.code(500).send({ error: 'Internal server error' });
     }
   });
 } 

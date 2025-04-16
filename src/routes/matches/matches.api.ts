@@ -264,9 +264,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
 
   // Create new match (managers only)
   fastify.post<{ Body: CreateMatchBody }>('/', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['admin', 'manager']),
     schema: {
-      description: 'Create a new match (manager only)',
+      description: 'Create a new match (admin or manager only)',
       tags: ['matches'],
       body: createMatchSchema,
       response: {
@@ -281,18 +281,23 @@ export async function matchRoutes(fastify: FastifyInstance) {
     try {
       const { league_id, home_team_id, away_team_id, match_date, simulator_settings, status = 'scheduled' } = request.body;
       
-      // Get the league manager to check authorization
-      const manager = await matchesService.getLeagueManager(league_id);
+      // Check if user is admin
+      const isAdmin = request.user.roles.includes('admin');
       
-      if (!manager) {
-        reply.code(404).send({ error: 'League not found' });
-        return;
-      }
-      
-      // Check if user is manager of this league
-      if (manager.user_id.toString() !== request.user.id.toString()) {
-        reply.code(403).send({ error: 'You are not authorized to create matches in this league' });
-        return;
+      if (!isAdmin) {
+        // Get the league manager to check authorization
+        const manager = await matchesService.getLeagueManager(league_id);
+        
+        if (!manager) {
+          reply.code(404).send({ error: 'League not found' });
+          return;
+        }
+        
+        // Check if user is manager of this league
+        if (manager.user_id.toString() !== request.user.id.toString()) {
+          reply.code(403).send({ error: 'You are not authorized to create matches in this league' });
+          return;
+        }
       }
       
       // Verify teams exist and are in the specified league using service
@@ -334,9 +339,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
 
   // Update match
   fastify.put<{ Params: { id: string }; Body: UpdateMatchBody }>('/:id', {
-    preHandler: checkRole(['manager']),
+    preHandler: checkRole(['admin', 'manager']),
     schema: {
-      description: 'Update an existing match (manager only)',
+      description: 'Update an existing match (admin or manager only)',
       tags: ['matches'],
       params: matchParamsSchema,
       body: updateMatchSchema,
@@ -352,8 +357,14 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const updateData = request.body;
       
+      // Check if user is admin
+      const isAdmin = request.user.roles.includes('admin');
+      
       // Check if user is authorized to update this match
-      const isAuthorized = await matchesService.isLeagueManager(id, request.user.id.toString());
+      let isAuthorized = isAdmin;
+      if (!isAdmin) {
+        isAuthorized = await matchesService.isLeagueManager(id, request.user.id.toString());
+      }
       
       if (!isAuthorized) {
         reply.code(403).send({ error: 'You are not authorized to update this match' });

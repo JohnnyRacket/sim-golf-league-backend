@@ -7,9 +7,21 @@ import {
   TeamStatus, 
   LeagueStatus, 
   MatchStatus,
-  NotificationType
+  NotificationType,
+  MatchResultStatus
 } from '../../../src/types/database';
-import { SeedData, SeedUser, SeedOwner, SeedLocation, SeedLeague, SeedTeam, SeedTeamMember, SeedMatch, SeedNotification } from './types';
+import { 
+  SeedData, 
+  SeedUser, 
+  SeedOwner, 
+  SeedLocation, 
+  SeedLeague, 
+  SeedTeam, 
+  SeedTeamMember, 
+  SeedMatch, 
+  SeedNotification,
+  SeedMatchResultSubmission 
+} from './types';
 
 // Use the SeedData interface directly
 type SeedResult = SeedData;
@@ -27,6 +39,7 @@ export async function seed(): Promise<SeedData> {
     teamMembers: [],
     matches: [],
     notifications: [],
+    matchResultSubmissions: [],
     tokens: {
       admin: '',
       user: ''
@@ -365,6 +378,168 @@ export async function seed(): Promise<SeedData> {
       body: 'Welcome to the Spring 2024 League! Good luck with your games.',
       type: 'system_message',
       is_read: false
+    });
+
+    // Create another match for testing match result submissions
+    const match2Id = uuidv4();
+    await db.insertInto('matches')
+      .values({
+        id: match2Id,
+        league_id: leagueId,
+        home_team_id: team1Id,
+        away_team_id: team2Id,
+        match_date: new Date('2024-04-20T14:00:00Z'), // A future date
+        status: 'scheduled' as MatchStatus,
+        home_team_score: 0,
+        away_team_score: 0,
+        player_details: playerDetails // Use the same player details
+      })
+      .execute();
+    
+    result.matches.push({
+      id: match2Id,
+      league_id: leagueId,
+      home_team_id: team1Id,
+      away_team_id: team2Id,
+      match_date: new Date('2024-04-20T14:00:00Z'),
+      status: 'scheduled',
+      home_team_score: 0,
+      away_team_score: 0,
+      player_details: playerDetails
+    });
+
+    // Create match result submissions
+    // 1. Create a submission from team1 (for match2)
+    const submission1Id = uuidv4();
+    await db.insertInto('match_result_submissions')
+      .values({
+        id: submission1Id,
+        match_id: match2Id,
+        team_id: team1Id,
+        user_id: user1Id,
+        home_team_score: 5,
+        away_team_score: 3,
+        notes: 'Good match!',
+        status: 'pending' as MatchResultStatus
+      })
+      .execute();
+    
+    result.matchResultSubmissions.push({
+      id: submission1Id,
+      match_id: match2Id,
+      team_id: team1Id,
+      user_id: user1Id,
+      home_team_score: 5,
+      away_team_score: 3,
+      notes: 'Good match!',
+      status: 'pending'
+    });
+
+    // Create match with conflicting submissions for testing
+    const match3Id = uuidv4();
+    await db.insertInto('matches')
+      .values({
+        id: match3Id,
+        league_id: leagueId,
+        home_team_id: team1Id,
+        away_team_id: team2Id,
+        match_date: new Date('2024-04-10T10:00:00Z'), // Past date
+        status: 'in_progress' as MatchStatus,
+        home_team_score: 0,
+        away_team_score: 0,
+        player_details: playerDetails // Use the same player details
+      })
+      .execute();
+    
+    result.matches.push({
+      id: match3Id,
+      league_id: leagueId,
+      home_team_id: team1Id,
+      away_team_id: team2Id,
+      match_date: new Date('2024-04-10T10:00:00Z'),
+      status: 'in_progress',
+      home_team_score: 0,
+      away_team_score: 0,
+      player_details: playerDetails
+    });
+
+    // Both teams have submitted conflicting results for match3
+    const submission2Id = uuidv4();
+    await db.insertInto('match_result_submissions')
+      .values({
+        id: submission2Id,
+        match_id: match3Id,
+        team_id: team1Id,
+        user_id: user1Id,
+        home_team_score: 6,
+        away_team_score: 2,
+        notes: 'We won!',
+        status: 'pending' as MatchResultStatus
+      })
+      .execute();
+    
+    result.matchResultSubmissions.push({
+      id: submission2Id,
+      match_id: match3Id,
+      team_id: team1Id,
+      user_id: user1Id,
+      home_team_score: 6,
+      away_team_score: 2,
+      notes: 'We won!',
+      status: 'pending'
+    });
+
+    const submission3Id = uuidv4();
+    await db.insertInto('match_result_submissions')
+      .values({
+        id: submission3Id,
+        match_id: match3Id,
+        team_id: team2Id,
+        user_id: user2Id,
+        home_team_score: 4,
+        away_team_score: 4,
+        notes: 'It was a draw',
+        status: 'pending' as MatchResultStatus
+      })
+      .execute();
+    
+    result.matchResultSubmissions.push({
+      id: submission3Id,
+      match_id: match3Id,
+      team_id: team2Id,
+      user_id: user2Id,
+      home_team_score: 4,
+      away_team_score: 4,
+      notes: 'It was a draw',
+      status: 'pending'
+    });
+
+    // Create a fourth match specifically for league manager direct updates
+    const match4Id = uuidv4();
+    await db.insertInto('matches')
+      .values({
+        id: match4Id,
+        league_id: leagueId,
+        home_team_id: team1Id,
+        away_team_id: team2Id,
+        match_date: new Date('2024-05-01T14:00:00Z'), // Future date
+        status: 'scheduled' as MatchStatus,
+        home_team_score: 0,
+        away_team_score: 0,
+        player_details: playerDetails
+      })
+      .execute();
+    
+    result.matches.push({
+      id: match4Id,
+      league_id: leagueId,
+      home_team_id: team1Id,
+      away_team_id: team2Id,
+      match_date: new Date('2024-05-01T14:00:00Z'),
+      status: 'scheduled',
+      home_team_score: 0,
+      away_team_score: 0,
+      player_details: playerDetails
     });
 
     console.log('Database seeding completed successfully');

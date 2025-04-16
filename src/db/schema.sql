@@ -12,6 +12,7 @@ CREATE TYPE recipient_type AS ENUM ('league', 'team', 'user');
 CREATE TYPE league_member_role AS ENUM ('player', 'spectator', 'manager');
 CREATE TYPE league_request_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
 CREATE TYPE notification_type AS ENUM ('league_invite', 'team_invite', 'match_reminder', 'match_result', 'team_join_request', 'league_join_request', 'system_message');
+CREATE TYPE match_result_status AS ENUM ('pending', 'approved', 'rejected');
 
 -- Create users table
 CREATE TABLE users (
@@ -173,6 +174,21 @@ CREATE TABLE notifications (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create match result submissions table
+CREATE TABLE match_result_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    home_team_score INTEGER NOT NULL,
+    away_team_score INTEGER NOT NULL,
+    notes TEXT,
+    status match_result_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(match_id, team_id)
+);
+
 -- Create triggers for updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -247,5 +263,11 @@ CREATE TRIGGER update_communications_updated_at
 -- Create trigger for notifications table
 CREATE TRIGGER update_notifications_updated_at
     BEFORE UPDATE ON notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+    
+-- Create trigger for match result submissions table
+CREATE TRIGGER update_match_result_submissions_updated_at
+    BEFORE UPDATE ON match_result_submissions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column(); 

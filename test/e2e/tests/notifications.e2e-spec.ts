@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll } from '@jest/globals';
 import { api, seedData } from '../helpers/setup';
 import { v4 as uuidv4 } from 'uuid';
+import { SeedNotification } from '../helpers/types';
 
 describe('Notifications API (E2E)', () => {
   let adminUserId: string;
@@ -87,7 +88,7 @@ describe('Notifications API (E2E)', () => {
       expect(response.data[0]).toHaveProperty('updated_at');
       
       // Check filtering by user
-      expect(response.data.every(n => n.user_id === undefined || n.user_id === regularUserId)).toBe(true);
+      expect(response.data.every((n: SeedNotification) => n.user_id === undefined || n.user_id === regularUserId)).toBe(true);
     });
 
     test('User can get their unread notifications count', async () => {

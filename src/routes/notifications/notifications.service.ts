@@ -16,7 +16,7 @@ export class NotificationsService {
   async getUserNotifications(userId: string) {
     try {
       return await this.db.selectFrom('notifications')
-        .select(['id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
+        .select(['id', 'user_id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
         .where('user_id', '=', userId)
         .orderBy('created_at', 'desc')
         .execute();
@@ -48,7 +48,7 @@ export class NotificationsService {
   async getNotificationById(id: string, userId: string) {
     try {
       return await this.db.selectFrom('notifications')
-        .select(['id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
+        .select(['id', 'user_id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
         .where('id', '=', id)
         .where('user_id', '=', userId) // Security: ensure user owns the notification
         .executeTakeFirst();
@@ -79,7 +79,7 @@ export class NotificationsService {
       
       const result = await this.db.insertInto('notifications')
         .values(insertData)
-        .returning(['id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
+        .returning(['id', 'user_id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
         .executeTakeFirst();
       
       return result;
@@ -97,7 +97,7 @@ export class NotificationsService {
         .set(data)
         .where('id', '=', id)
         .where('user_id', '=', userId) // Security: ensure user owns the notification
-        .returning(['id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
+        .returning(['id', 'user_id', 'title', 'body', 'type', 'action_id', 'is_read', 'created_at', 'updated_at'])
         .executeTakeFirst();
       
       return result;
