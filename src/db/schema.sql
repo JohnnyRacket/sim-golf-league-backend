@@ -13,6 +13,7 @@ CREATE TYPE league_member_role AS ENUM ('player', 'spectator', 'manager');
 CREATE TYPE league_request_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
 CREATE TYPE notification_type AS ENUM ('league_invite', 'team_invite', 'match_reminder', 'match_result', 'team_join_request', 'league_join_request', 'system_message');
 CREATE TYPE match_result_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE communication_type AS ENUM ('system', 'league', 'maintenance', 'advertisement', 'schedule');
 
 -- Create users table
 CREATE TABLE users (
@@ -152,10 +153,13 @@ CREATE TABLE stats (
 -- Create communications table with PostgreSQL syntax
 CREATE TABLE communications (
     id SERIAL PRIMARY KEY,
-    sender_id UUID NOT NULL REFERENCES users(id),
+    sender_id UUID REFERENCES users(id),
     recipient_type recipient_type NOT NULL,
     recipient_id UUID NOT NULL,
+    type communication_type NOT NULL,
+    title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
+    expiration_date TIMESTAMP WITH TIME ZONE,
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

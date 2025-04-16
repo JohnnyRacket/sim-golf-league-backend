@@ -11,6 +11,7 @@ export type LeagueMemberRole = 'player' | 'spectator' | 'manager';
 export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type NotificationType = 'league_invite' | 'team_invite' | 'match_reminder' | 'match_result' | 'team_join_request' | 'league_join_request' | 'system_message';
 export type MatchResultStatus = 'pending' | 'approved' | 'rejected';
+export type CommunicationType = 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule';
 
 export interface Database {
   users: UserTable;
@@ -140,10 +141,13 @@ export interface StatsTable {
 
 export interface CommunicationTable {
   id: Generated<number>;
-  sender_id: string;
+  sender_id?: string;
   recipient_type: 'league' | 'team' | 'user';
   recipient_id: string;
+  type: CommunicationType;
+  title: string;
   message: string;
+  expiration_date?: Date;
   sent_at: Generated<Date>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

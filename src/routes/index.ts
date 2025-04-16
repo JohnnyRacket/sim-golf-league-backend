@@ -7,6 +7,7 @@ import { locationRoutes } from './locations/locations.api';
 import { matchRoutes } from './matches/matches.api';
 import { notificationRoutes } from './notifications/notifications.api';
 import { matchResultRoutes } from './match-results/match-results.api';
+import { communicationRoutes } from './communications/communications.api';
 import { authenticate } from '../middleware/auth';
 
 export async function registerRoutes(fastify: FastifyInstance) {
@@ -26,5 +27,6 @@ export async function registerRoutes(fastify: FastifyInstance) {
     protectedRoutes.register(locationRoutes, { prefix: '/locations' });
     protectedRoutes.register(notificationRoutes, { prefix: '/notifications' });
     protectedRoutes.register(matchResultRoutes, { prefix: '/match-results' });
+    protectedRoutes.register(communicationRoutes, { prefix: '/communications' });
   });
 } 

@@ -5,7 +5,8 @@ import {
   LeagueStatus, 
   MatchStatus,
   NotificationType,
-  MatchResultStatus
+  MatchResultStatus,
+  CommunicationType
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -91,6 +92,18 @@ export interface SeedMatchResultSubmission {
   status: MatchResultStatus;
 }
 
+export interface SeedCommunication {
+  id: number;
+  sender_id?: string;
+  recipient_type: 'league' | 'team' | 'user';
+  recipient_id: string;
+  type: CommunicationType;
+  title: string;
+  message: string;
+  expiration_date?: Date;
+  sent_at: Date;
+}
+
 export interface SeedTokens {
   admin: string;
   user: string;
@@ -106,5 +119,6 @@ export interface SeedData {
   matches: SeedMatch[];
   notifications: SeedNotification[];
   matchResultSubmissions: SeedMatchResultSubmission[];
+  communications: SeedCommunication[];
   tokens: SeedTokens;
 } 

@@ -8,7 +8,9 @@ import {
   LeagueStatus, 
   MatchStatus,
   NotificationType,
-  MatchResultStatus
+  MatchResultStatus,
+  CommunicationType,
+  LeagueMemberRole
 } from '../../../src/types/database';
 import { 
   SeedData, 
@@ -20,7 +22,8 @@ import {
   SeedTeamMember, 
   SeedMatch, 
   SeedNotification,
-  SeedMatchResultSubmission 
+  SeedMatchResultSubmission,
+  SeedCommunication
 } from './types';
 
 // Use the SeedData interface directly
@@ -40,6 +43,7 @@ export async function seed(): Promise<SeedData> {
     matches: [],
     notifications: [],
     matchResultSubmissions: [],
+    communications: [],
     tokens: {
       admin: '',
       user: ''
@@ -541,6 +545,116 @@ export async function seed(): Promise<SeedData> {
       away_team_score: 0,
       player_details: playerDetails
     });
+
+    // Create communications
+    // League announcement
+    const now = new Date();
+    const [leagueComm] = await db.insertInto('communications')
+      .values({
+        sender_id: adminId,
+        recipient_type: 'league',
+        recipient_id: leagueId,
+        type: 'league' as CommunicationType,
+        title: 'Welcome to the Spring 2024 League',
+        message: 'Welcome everyone to our new season! We look forward to a great season.',
+        sent_at: now
+      })
+      .returningAll()
+      .execute();
+    
+    result.communications.push({
+      id: leagueComm.id,
+      sender_id: adminId,
+      recipient_type: 'league',
+      recipient_id: leagueId,
+      type: 'league',
+      title: 'Welcome to the Spring 2024 League',
+      message: 'Welcome everyone to our new season! We look forward to a great season.',
+      sent_at: now
+    });
+
+    // Maintenance announcement
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const [maintenanceComm] = await db.insertInto('communications')
+      .values({
+        sender_id: adminId,
+        recipient_type: 'league',
+        recipient_id: leagueId,
+        type: 'maintenance' as CommunicationType,
+        title: 'Scheduled Maintenance',
+        message: 'The club will be closed for maintenance on Saturday.',
+        expiration_date: tomorrow,
+        sent_at: now
+      })
+      .returningAll()
+      .execute();
+    
+    result.communications.push({
+      id: maintenanceComm.id,
+      sender_id: adminId,
+      recipient_type: 'league',
+      recipient_id: leagueId,
+      type: 'maintenance',
+      title: 'Scheduled Maintenance',
+      message: 'The club will be closed for maintenance on Saturday.',
+      expiration_date: tomorrow,
+      sent_at: now
+    });
+
+    // Anonymous system announcement
+    const [systemComm] = await db.insertInto('communications')
+      .values({
+        recipient_type: 'league',
+        recipient_id: leagueId,
+        type: 'system' as CommunicationType,
+        title: 'System Update',
+        message: 'The system will undergo an update tonight. Please expect brief downtime.',
+        sent_at: now
+      })
+      .returningAll()
+      .execute();
+    
+    result.communications.push({
+      id: systemComm.id,
+      recipient_type: 'league',
+      recipient_id: leagueId,
+      type: 'system',
+      title: 'System Update',
+      message: 'The system will undergo an update tonight. Please expect brief downtime.',
+      sent_at: now
+    });
+
+    // Add users as league members (required for notification tests)
+    // Add user1 as a league player
+    await db.insertInto('league_members')
+      .values({
+        id: uuidv4(),
+        league_id: leagueId,
+        user_id: user1Id,
+        role: 'player' as LeagueMemberRole,
+      })
+      .execute();
+
+    // Add user2 as a league spectator
+    await db.insertInto('league_members')
+      .values({
+        id: uuidv4(),
+        league_id: leagueId,
+        user_id: user2Id,
+        role: 'spectator' as LeagueMemberRole,
+      })
+      .execute();
+
+    // Add admin as a league manager
+    await db.insertInto('league_members')
+      .values({
+        id: uuidv4(), 
+        league_id: leagueId,
+        user_id: adminId,
+        role: 'manager' as LeagueMemberRole,
+      })
+      .execute();
 
     console.log('Database seeding completed successfully');
     return result;

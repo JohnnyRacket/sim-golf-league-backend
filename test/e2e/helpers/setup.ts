@@ -40,12 +40,16 @@ afterAll(async () => {
   console.log('Cleaning up E2E test environment...');
   
   try {
-    // Clean up test data
+    // Clean up test data in order respecting foreign key constraints
     await db.deleteFrom('notifications').execute();
     await db.deleteFrom('match_result_submissions').execute();
     await db.deleteFrom('matches').execute();
     await db.deleteFrom('team_members').execute();
+    await db.deleteFrom('team_join_requests').execute();
     await db.deleteFrom('teams').execute();
+    await db.deleteFrom('league_members').execute();
+    await db.deleteFrom('league_membership_requests').execute();
+    await db.deleteFrom('communications').execute(); // Delete communications before users
     await db.deleteFrom('leagues').execute();
     await db.deleteFrom('locations').execute();
     await db.deleteFrom('owners').execute();
