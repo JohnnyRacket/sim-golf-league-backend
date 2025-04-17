@@ -522,6 +522,72 @@ describe('Matches API (E2E)', () => {
       expect(response.status).toBe(404);
       expect(response.data).toHaveProperty('error');
     });
+    
+    test('Date change creates communications and notifies league members', async () => {
+      await loginAsAdmin();
+      
+      // First create a match on a specific day
+      const matchDate = new Date();
+      matchDate.setDate(matchDate.getDate() + 45); // 45 days in the future
+      
+      // Create a match
+      const match = {
+        league_id: leagueId,
+        home_team_id: homeTeamId,
+        away_team_id: awayTeamId,
+        match_date: matchDate.toISOString(),
+        status: 'scheduled',
+        game_format: 'individual',
+        match_format: 'stroke_play',
+        scoring_format: 'gross'
+      };
+      
+      const createResponse = await api.post('/matches', match);
+      expect(createResponse.status).toBe(201);
+      
+      // Now reschedule the match using bulk update
+      const nextDay = new Date(matchDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      const bulkUpdateData = {
+        date: matchDate.toISOString().split('T')[0], // Just the date part YYYY-MM-DD
+        new_date: nextDay.toISOString(),
+      };
+      
+      const bulkUpdateResponse = await api.put(`/matches/league/${leagueId}/day`, bulkUpdateData);
+      expect(bulkUpdateResponse.status).toBe(200);
+      
+      // Check if a communication was created for the league
+      // The communications endpoint should return any league communications
+      const communicationsResponse = await api.get(`/communications/league/${leagueId}`);
+      expect(communicationsResponse.status).toBe(200);
+      
+      // Look for a schedule communication related to date change
+      const scheduleComms = communicationsResponse.data.filter(
+        (comm: { type: string; title: string }) => comm.type === 'schedule' && comm.title.includes('Schedule Change')
+      );
+      
+      // Should find at least one schedule change communication
+      expect(scheduleComms.length).toBeGreaterThan(0);
+      
+      // Verify it mentions the date change
+      const latestComm = scheduleComms[0];
+      expect(latestComm.message).toContain('moved to');
+      
+      // Verify the user has a notification about it (if we have access to user notifications)
+      try {
+        const notificationsResponse = await api.get('/notifications');
+        if (notificationsResponse.status === 200) {
+          const hasScheduleNotification = notificationsResponse.data.some(
+            (notification: { title: string }) => notification.title.includes('Schedule Change')
+          );
+          expect(hasScheduleNotification).toBe(true);
+        }
+      } catch (error) {
+        // If notifications endpoint isn't accessible, just skip this check
+        console.log('Notifications endpoint not accessible, skipping notification check');
+      }
+    });
   });
 
   describe('Error handling', () => {

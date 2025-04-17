@@ -616,7 +616,12 @@ export async function matchRoutes(fastify: FastifyInstance) {
       }
       
       // Perform the bulk update
-      const result = await matchesService.bulkUpdateMatchesForDay(league_id, date, updates);
+      const result = await matchesService.bulkUpdateMatchesForDay(
+        league_id, 
+        date, 
+        updates,
+        request.user.id.toString() // Pass the user ID for communication sender
+      );
       
       if (result.matches_updated === 0) {
         reply.code(404).send({ error: 'No matches found for the specified date in this league' });

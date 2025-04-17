@@ -9,6 +9,7 @@ import {
   ManagerInfo 
 } from "./matches.types";
 import { v4 as uuidv4 } from 'uuid';
+import { createCommunication } from '../communications/communications.service';
 
 export class MatchesService {
   private db: Kysely<Database>;
@@ -736,7 +737,8 @@ export class MatchesService {
       game_format: GameFormatType;
       match_format: MatchFormatType;
       scoring_format: ScoringFormatType;
-    }>
+    }>,
+    userId?: string
   ): Promise<{
     matches_updated: number;
     matches: Array<{ id: string; match_date: Date }>;
@@ -776,6 +778,19 @@ export class MatchesService {
         };
       }
       
+      // Get league name for notifications if date is changing
+      let leagueName = 'Golf League';
+      if (updates.match_date) {
+        const leagueInfo = await this.db.selectFrom('leagues')
+          .select('name')
+          .where('id', '=', leagueId)
+          .executeTakeFirst();
+        
+        if (leagueInfo) {
+          leagueName = leagueInfo.name;
+        }
+      }
+      
       // Perform the update transaction
       const updatedMatches = await this.db.transaction().execute(async (transaction) => {
         // Build the update query with only the fields that need to be updated
@@ -812,6 +827,18 @@ export class MatchesService {
         return updatedMatchesQuery;
       });
       
+      // If the match date was updated, create a communication and notify league members
+      if (updates.match_date) {
+        await this.createDateChangeNotification(
+          leagueId, 
+          date, 
+          updates.match_date, 
+          matchesToUpdate.length, 
+          leagueName,
+          userId
+        );
+      }
+      
       return {
         matches_updated: updatedMatches.length,
         matches: updatedMatches.map(match => ({
@@ -821,6 +848,54 @@ export class MatchesService {
       };
     } catch (error) {
       throw new Error(`Failed to bulk update matches: ${error}`);
+    }
+  }
+  
+  /**
+   * Creates a communication and notifications for league members when matches are rescheduled
+   */
+  private async createDateChangeNotification(
+    leagueId: string,
+    originalDate: string,
+    newDate: Date,
+    matchCount: number,
+    leagueName: string,
+    senderId?: string
+  ): Promise<void> {
+    try {
+      // Format dates for display
+      const formattedOriginalDate = new Date(originalDate).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      });
+      
+      const formattedNewDate = newDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      });
+      
+      // Create notification title and message
+      const title = `${leagueName} - Match Schedule Change`;
+      const message = `${matchCount} ${matchCount === 1 ? 'match' : 'matches'} originally scheduled for ${formattedOriginalDate} ${matchCount === 1 ? 'has' : 'have'} been moved to ${formattedNewDate}.`;
+      
+      // Create a communication for the league
+      await createCommunication({
+        recipientType: 'league',
+        recipientId: leagueId,
+        type: 'schedule',
+        title,
+        message,
+        senderId: senderId || null
+      });
+      
+      // Note: Creating a communication automatically notifies all league members
+    } catch (error) {
+      // Log error but don't fail the update operation if notification fails
+      console.error(`Error creating date change notification: ${error}`);
     }
   }
 } 
