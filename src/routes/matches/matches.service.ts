@@ -1,5 +1,5 @@
 import { Kysely, Transaction } from 'kysely';
-import { Database, MatchTable } from "../../types/database";
+import { Database, MatchTable, GameFormatType, MatchFormatType, ScoringFormatType } from "../../types/database";
 import { MatchStatus } from "../../types/enums";
 import { 
   EnhancedMatch, 
@@ -62,18 +62,21 @@ export class MatchesService {
         .leftJoin('teams as away_team', 'away_team.id', 'matches.away_team_id')
         .leftJoin('leagues', 'leagues.id', 'matches.league_id')
         .select([
-          'matches.id',
-          'matches.league_id',
-          'matches.home_team_id',
-          'matches.away_team_id',
-          'matches.match_date',
-          'matches.status',
-          'matches.home_team_score',
-          'matches.away_team_score',
-          'matches.player_details',
-          'matches.simulator_settings',
-          'matches.created_at',
-          'matches.updated_at',
+          'matches.id as id',
+          'matches.league_id as league_id',
+          'matches.home_team_id as home_team_id',
+          'matches.away_team_id as away_team_id',
+          'matches.match_date as match_date',
+          'matches.status as status',
+          'matches.home_team_score as home_team_score',
+          'matches.away_team_score as away_team_score',
+          'matches.player_details as player_details',
+          'matches.simulator_settings as simulator_settings',
+          'matches.game_format as game_format',
+          'matches.match_format as match_format',
+          'matches.scoring_format as scoring_format',
+          'matches.created_at as created_at',
+          'matches.updated_at as updated_at',
           'home_team.name as home_team_name',
           'away_team.name as away_team_name', 
           'leagues.name as league_name'
@@ -97,6 +100,9 @@ export class MatchesService {
         away_team_score: result.away_team_score,
         player_details: result.player_details,
         simulator_settings: result.simulator_settings,
+        game_format: result.game_format as GameFormatType,
+        match_format: result.match_format as MatchFormatType,
+        scoring_format: result.scoring_format as ScoringFormatType,
         created_at: result.created_at,
         updated_at: result.updated_at,
         home_team: result.home_team_name ? { 
@@ -200,18 +206,21 @@ export class MatchesService {
         .leftJoin('teams as away_team', 'away_team.id', 'matches.away_team_id')
         .leftJoin('leagues', 'leagues.id', 'matches.league_id')
         .select([
-          'matches.id',
-          'matches.league_id',
-          'matches.home_team_id',
-          'matches.away_team_id',
-          'matches.match_date',
-          'matches.status',
-          'matches.home_team_score',
-          'matches.away_team_score',
-          'matches.player_details',
-          'matches.simulator_settings',
-          'matches.created_at',
-          'matches.updated_at',
+          'matches.id as id',
+          'matches.league_id as league_id',
+          'matches.home_team_id as home_team_id',
+          'matches.away_team_id as away_team_id',
+          'matches.match_date as match_date',
+          'matches.status as status',
+          'matches.home_team_score as home_team_score',
+          'matches.away_team_score as away_team_score',
+          'matches.player_details as player_details',
+          'matches.simulator_settings as simulator_settings',
+          'matches.game_format as game_format',
+          'matches.match_format as match_format',
+          'matches.scoring_format as scoring_format',
+          'matches.created_at as created_at',
+          'matches.updated_at as updated_at',
           'home_team.name as home_team_name',
           'away_team.name as away_team_name', 
           'leagues.name as league_name'
@@ -281,6 +290,9 @@ export class MatchesService {
         away_team_score: result.away_team_score,
         player_details: result.player_details,
         simulator_settings: result.simulator_settings,
+        game_format: result.game_format as GameFormatType,
+        match_format: result.match_format as MatchFormatType,
+        scoring_format: result.scoring_format as ScoringFormatType,
         created_at: result.created_at,
         updated_at: result.updated_at,
         home_team: result.home_team_name ? { 

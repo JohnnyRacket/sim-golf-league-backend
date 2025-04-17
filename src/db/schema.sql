@@ -17,6 +17,9 @@ CREATE TYPE communication_type AS ENUM ('system', 'league', 'maintenance', 'adve
 CREATE TYPE payment_type AS ENUM ('weekly', 'monthly', 'upfront', 'free');
 CREATE TYPE day_of_week AS ENUM ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday');
 CREATE TYPE handedness_type AS ENUM ('left', 'right', 'both');
+CREATE TYPE game_format_type AS ENUM ('scramble', 'best_ball', 'alternate_shot', 'individual');
+CREATE TYPE match_format_type AS ENUM ('stroke_play', 'match_play');
+CREATE TYPE scoring_format_type AS ENUM ('net', 'gross');
 
 -- Create users table
 CREATE TABLE users (
@@ -158,6 +161,9 @@ CREATE TABLE matches (
     player_details JSONB DEFAULT NULL,
     simulator_settings JSONB DEFAULT NULL,
     status match_status NOT NULL DEFAULT 'scheduled',
+    game_format game_format_type DEFAULT 'individual',
+    match_format match_format_type DEFAULT 'stroke_play',
+    scoring_format scoring_format_type DEFAULT 'gross',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CHECK (home_team_id != away_team_id)

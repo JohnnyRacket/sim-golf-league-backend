@@ -15,6 +15,9 @@ export type CommunicationType = 'system' | 'league' | 'maintenance' | 'advertise
 export type PaymentType = 'weekly' | 'monthly' | 'upfront' | 'free';
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export type HandednessType = 'left' | 'right' | 'both';
+export type GameFormatType = 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
+export type MatchFormatType = 'stroke_play' | 'match_play';
+export type ScoringFormatType = 'net' | 'gross';
 
 export interface Database {
   users: UserTable;
@@ -149,6 +152,9 @@ export interface MatchTable {
   player_details?: Record<string, any>;
   simulator_settings?: Record<string, any>;
   status: MatchStatus;
+  game_format?: GameFormatType;
+  match_format?: MatchFormatType;
+  scoring_format?: ScoringFormatType;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

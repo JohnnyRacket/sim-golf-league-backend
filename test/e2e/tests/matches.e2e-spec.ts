@@ -82,6 +82,14 @@ describe('Matches API (E2E)', () => {
       
       expect(response.status).toBe(200);
       expect(Array.isArray(response.data)).toBe(true);
+      
+      // Check that our new fields are included in the response
+      if (response.data.length > 0) {
+        const match = response.data[0];
+        expect(match).toHaveProperty('game_format');
+        expect(match).toHaveProperty('match_format');
+        expect(match).toHaveProperty('scoring_format');
+      }
     });
 
     test('Users can filter matches by league', async () => {
@@ -122,6 +130,14 @@ describe('Matches API (E2E)', () => {
       
       // Should return matches where user is on one of the teams and status is scheduled
       // We can't assert much more without knowing the exact data
+      
+      // Check that our new fields are included in the response
+      if (response.data.length > 0) {
+        const match = response.data[0];
+        expect(match).toHaveProperty('game_format');
+        expect(match).toHaveProperty('match_format');
+        expect(match).toHaveProperty('scoring_format');
+      }
     });
   });
 
@@ -137,6 +153,16 @@ describe('Matches API (E2E)', () => {
       expect(response.data).toHaveProperty('away_team_id');
       expect(response.data).toHaveProperty('league_id');
       expect(response.data).toHaveProperty('status');
+      
+      // Check for new fields
+      expect(response.data).toHaveProperty('game_format');
+      expect(response.data).toHaveProperty('match_format');
+      expect(response.data).toHaveProperty('scoring_format');
+      
+      // Validate that the values have expected types
+      expect(['scramble', 'best_ball', 'alternate_shot', 'individual', null, undefined]).toContain(response.data.game_format);
+      expect(['stroke_play', 'match_play', null, undefined]).toContain(response.data.match_format);
+      expect(['net', 'gross', null, undefined]).toContain(response.data.scoring_format);
     });
 
     test('Users can view their match summaries', async () => {
@@ -176,7 +202,10 @@ describe('Matches API (E2E)', () => {
         home_team_id: homeTeamId,
         away_team_id: awayTeamId,
         match_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
-        status: 'scheduled'
+        status: 'scheduled',
+        game_format: 'scramble',
+        match_format: 'match_play',
+        scoring_format: 'net'
       };
       
       const response = await api.post('/matches', matchData);
@@ -190,7 +219,8 @@ describe('Matches API (E2E)', () => {
       await loginAsUser();
       
       const updateData = {
-        status: 'cancelled'
+        status: 'cancelled',
+        game_format: 'best_ball'
       };
       
       const response = await api.put(`/matches/${matchId}`, updateData);
@@ -224,7 +254,7 @@ describe('Matches API (E2E)', () => {
   describe('Admin match management', () => {
     let newMatchId: string;
     
-    test('Admin can create a new match', async () => {
+    test('Admin can create a new match with format settings', async () => {
       await loginAsAdmin();
       
       const newMatch = {
@@ -232,7 +262,10 @@ describe('Matches API (E2E)', () => {
         home_team_id: homeTeamId,
         away_team_id: awayTeamId,
         match_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks from now
-        status: 'scheduled'
+        status: 'scheduled',
+        game_format: 'scramble',
+        match_format: 'match_play',
+        scoring_format: 'net'
       };
       
       const response = await api.post('/matches', newMatch);
@@ -242,9 +275,16 @@ describe('Matches API (E2E)', () => {
       expect(response.data).toHaveProperty('message', 'Match created successfully');
       expect(response.data).toHaveProperty('id');
       newMatchId = response.data.id;
+      
+      // Verify the match was created with our format settings
+      const getResponse = await api.get(`/matches/${newMatchId}`);
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.data.game_format).toBe('scramble');
+      expect(getResponse.data.match_format).toBe('match_play');
+      expect(getResponse.data.scoring_format).toBe('net');
     });
     
-    test('Admin can update a match', async () => {
+    test('Admin can update a match including format settings', async () => {
       // Skip if previous test didn't create a match
       if (!newMatchId) {
         console.log('Skipping update test as no match was created');
@@ -255,7 +295,10 @@ describe('Matches API (E2E)', () => {
       
       const updateData = {
         match_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(), // 3 weeks from now
-        status: 'scheduled'
+        status: 'scheduled',
+        game_format: 'best_ball',
+        match_format: 'stroke_play',
+        scoring_format: 'gross'
       };
       
       const response = await api.put(`/matches/${newMatchId}`, updateData);
@@ -268,8 +311,11 @@ describe('Matches API (E2E)', () => {
       const getResponse = await api.get(`/matches/${newMatchId}`);
       expect(getResponse.status).toBe(200);
       
-      // Check if the status was updated
+      // Check if all fields were updated
       expect(getResponse.data.status).toBe('scheduled');
+      expect(getResponse.data.game_format).toBe('best_ball');
+      expect(getResponse.data.match_format).toBe('stroke_play');
+      expect(getResponse.data.scoring_format).toBe('gross');
     });
     
     test('Admin can submit match results', async () => {
@@ -315,6 +361,11 @@ describe('Matches API (E2E)', () => {
         expect(getResponse.data.status).toBe('completed');
         expect(getResponse.data.home_team_score).toBe(1); // We gave the home team a win
         expect(getResponse.data.away_team_score).toBe(0);
+        
+        // Verify the format settings are preserved after results submission
+        expect(getResponse.data.game_format).toBe('best_ball');
+        expect(getResponse.data.match_format).toBe('stroke_play');
+        expect(getResponse.data.scoring_format).toBe('gross');
       } else if (response.status === 400) {
         // If we hit a validation error, log it for debugging but don't fail the test
         console.log('Match results submission validation error:', JSON.stringify(response.data));
@@ -343,12 +394,29 @@ describe('Matches API (E2E)', () => {
       // Missing required fields
       const invalidMatch = {
         // Missing league_id, home_team_id, away_team_id, match_date
+        game_format: 'invalid_format', // Invalid format
+        match_format: 'stroke_play',
+        scoring_format: 'net'
       };
       
       const response = await api.post('/matches', invalidMatch);
       
-      // Should either be 400 (validation error) or 403 (permission error)
-      expect([400, 403]).toContain(response.status);
+      // Should be 400 (validation error)
+      expect(response.status).toBe(400);
+      expect(response.data).toHaveProperty('error');
+    });
+    
+    test('Validates format fields when updating matches', async () => {
+      await loginAsAdmin();
+      
+      const updateWithInvalidFormat = {
+        game_format: 'invalid_format' // Not one of the allowed values
+      };
+      
+      const response = await api.put(`/matches/${matchId}`, updateWithInvalidFormat);
+      
+      // Should be 400 (validation error)
+      expect(response.status).toBe(400);
       expect(response.data).toHaveProperty('error');
     });
   });

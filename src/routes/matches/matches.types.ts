@@ -9,12 +9,18 @@ export interface CreateMatchBody {
   match_date: string;
   simulator_settings?: Record<string, any>;
   status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
+  match_format?: 'stroke_play' | 'match_play';
+  scoring_format?: 'net' | 'gross';
 }
 
 export interface UpdateMatchBody {
   match_date?: string;
   simulator_settings?: Record<string, any>;
   status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
+  match_format?: 'stroke_play' | 'match_play';
+  scoring_format?: 'net' | 'gross';
 }
 
 export interface MatchGameBody {
@@ -63,6 +69,9 @@ export interface EnhancedMatch {
   away_team_score: number;
   player_details?: Record<string, any>;
   simulator_settings?: Record<string, any>;
+  game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
+  match_format?: 'stroke_play' | 'match_play';
+  scoring_format?: 'net' | 'gross';
   created_at: Date;
   updated_at: Date;
   home_team?: TeamInfo;
@@ -97,6 +106,9 @@ export interface MatchWithTeams {
   league_id: string;
   league_name: string;
   simulator_settings?: Record<string, any>;
+  game_format?: string;
+  match_format?: string;
+  scoring_format?: string;
 }
 
 // API Schema definitions
@@ -133,6 +145,9 @@ export const matchSchema = {
     status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
     home_team_score: { type: 'integer', minimum: 0 },
     away_team_score: { type: 'integer', minimum: 0 },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' },
     player_details: {
@@ -171,7 +186,10 @@ export const matchWithTeamsSchema = {
     simulator_settings: {
       type: 'object',
       additionalProperties: true
-    }
+    },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] }
   },
   required: ['id', 'match_date', 'status', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 'league_id', 'league_name']
 };
@@ -187,7 +205,10 @@ export const upcomingMatchSchema = {
     away_team_id: { type: 'string', format: 'uuid' },
     away_team_name: { type: 'string' },
     league_id: { type: 'string', format: 'uuid' },
-    league_name: { type: 'string' }
+    league_name: { type: 'string' },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] }
   },
   required: ['id', 'match_date', 'status', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 'league_id', 'league_name']
 };
@@ -217,7 +238,10 @@ export const createMatchSchema = {
       type: 'object',
       additionalProperties: true
     },
-    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] }
+    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] }
   },
   required: ['league_id', 'home_team_id', 'away_team_id', 'match_date']
 };
@@ -230,7 +254,10 @@ export const updateMatchSchema = {
       type: 'object',
       additionalProperties: true
     },
-    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] }
+    status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] }
   }
 };
 

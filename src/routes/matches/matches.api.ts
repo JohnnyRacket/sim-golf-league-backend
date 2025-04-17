@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { MatchStatus, MatchTable } from '../../types/database';
+import { MatchStatus, MatchTable, GameFormatType, MatchFormatType, ScoringFormatType } from '../../types/database';
 import { MatchesService } from './matches.service';
 import {
   matchSchema,
@@ -67,7 +67,10 @@ export async function matchRoutes(fastify: FastifyInstance) {
         away_team_id: match.away_team_id,
         away_team_name: match.away_team?.name || 'Unknown',
         league_id: match.league_id,
-        league_name: match.league?.name || 'Unknown'
+        league_name: match.league?.name || 'Unknown',
+        game_format: match.game_format,
+        match_format: match.match_format,
+        scoring_format: match.scoring_format
       }));
     } catch (error) {
       request.log.error(error);
@@ -138,7 +141,10 @@ export async function matchRoutes(fastify: FastifyInstance) {
         away_team_name: match.away_team?.name || 'Unknown',
         away_team_score: match.away_team_score,
         league_id: match.league_id,
-        league_name: match.league?.name || 'Unknown'
+        league_name: match.league?.name || 'Unknown',
+        game_format: match.game_format,
+        match_format: match.match_format,
+        scoring_format: match.scoring_format
       }));
     } catch (error) {
       request.log.error(error);
@@ -188,6 +194,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
         home_team: match.home_team,
         away_team: match.away_team,
         league: match.league,
+        game_format: match.game_format,
+        match_format: match.match_format,
+        scoring_format: match.scoring_format,
         created_at: match.created_at,
         updated_at: match.updated_at
       };
@@ -279,7 +288,17 @@ export async function matchRoutes(fastify: FastifyInstance) {
     }
   }, async (request, reply) => {
     try {
-      const { league_id, home_team_id, away_team_id, match_date, simulator_settings, status = 'scheduled' } = request.body;
+      const { 
+        league_id, 
+        home_team_id, 
+        away_team_id, 
+        match_date, 
+        simulator_settings, 
+        status = 'scheduled',
+        game_format = 'individual',
+        match_format = 'stroke_play',
+        scoring_format = 'gross'
+      } = request.body;
       
       // Check if user is admin
       const isAdmin = request.user.roles.includes('admin');
@@ -321,7 +340,10 @@ export async function matchRoutes(fastify: FastifyInstance) {
         status: status as MatchStatus,
         home_team_score: 0,
         away_team_score: 0,
-        simulator_settings: simulator_settings || {}
+        simulator_settings: simulator_settings || {},
+        game_format,
+        match_format,
+        scoring_format
       };
       
       // Create the match using service
@@ -376,6 +398,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
       if (updateData.match_date) data.match_date = new Date(updateData.match_date);
       if (updateData.status) data.status = updateData.status;
       if (updateData.simulator_settings) data.simulator_settings = updateData.simulator_settings;
+      if (updateData.game_format) data.game_format = updateData.game_format as GameFormatType;
+      if (updateData.match_format) data.match_format = updateData.match_format as MatchFormatType;
+      if (updateData.scoring_format) data.scoring_format = updateData.scoring_format as ScoringFormatType;
       
       // Update match using service
       const updatedMatch = await matchesService.updateMatch(id, data);
