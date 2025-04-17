@@ -165,7 +165,7 @@ CREATE TABLE matches (
 
 -- Create stats table with proper UUID references
 CREATE TABLE stats (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
     matches_played INTEGER NOT NULL DEFAULT 0,
@@ -179,7 +179,7 @@ CREATE TABLE stats (
 
 -- Create communications table with PostgreSQL syntax
 CREATE TABLE communications (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID REFERENCES users(id),
     recipient_type recipient_type NOT NULL,
     recipient_id UUID NOT NULL,

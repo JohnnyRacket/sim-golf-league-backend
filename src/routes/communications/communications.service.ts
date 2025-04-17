@@ -10,7 +10,7 @@ interface CreateCommunicationParams {
   title: string;
   message: string;
   expirationDate?: Date;
-  senderId?: string;
+  senderId?: string | null;
 }
 
 // Initialize notifications service
@@ -31,10 +31,10 @@ export async function getCommunicationsForLeague(leagueId: string) {
     .execute();
 }
 
-export async function getCommunicationById(id: string | number) {
+export async function getCommunicationById(id: string) {
   const communication = await db.selectFrom('communications')
     .selectAll()
-    .where('id', '=', Number(id))
+    .where('id', '=', id)
     .executeTakeFirst();
 
   if (!communication) {
@@ -55,10 +55,14 @@ export async function createCommunication(params: CreateCommunicationParams) {
     senderId
   } = params;
 
+  // Generate a UUID for the new communication
+  const id = uuidv4();
+
   // Insert the communication
   const [newCommunication] = await db.insertInto('communications')
     .values({
-      sender_id: senderId,
+      id,
+      sender_id: senderId === null ? null : senderId,
       recipient_type: recipientType,
       recipient_id: recipientId,
       type,
@@ -77,17 +81,17 @@ export async function createCommunication(params: CreateCommunicationParams) {
   return newCommunication;
 }
 
-export async function deleteCommunication(id: string | number) {
+export async function deleteCommunication(id: string) {
   const communication = await getCommunicationById(id);
 
   await db.deleteFrom('communications')
-    .where('id', '=', Number(id))
+    .where('id', '=', id)
     .execute();
 
   return { message: 'Communication deleted successfully', deletedCommunication: communication };
 }
 
-async function notifyLeagueMembers(leagueId: string, title: string, body: string, type: string, communicationId: number) {
+async function notifyLeagueMembers(leagueId: string, title: string, body: string, type: string, communicationId: string) {
   // Get all league members
   const leagueMembers = await db.selectFrom('league_members')
     .select('user_id')
@@ -101,7 +105,7 @@ async function notifyLeagueMembers(leagueId: string, title: string, body: string
       title: `New ${type} Communication: ${title}`,
       body,
       type: 'system_message',
-      action_id: communicationId.toString()
+      action_id: communicationId // Now we can use the communication ID directly as it's a UUID
     });
   }
 } 

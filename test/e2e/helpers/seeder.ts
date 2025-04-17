@@ -648,8 +648,10 @@ export async function seed(): Promise<SeedData> {
     // Create communications
     // League announcement
     const now = new Date();
+    const leagueCommId = uuidv4();
     const [leagueComm] = await db.insertInto('communications')
       .values({
+        id: leagueCommId,
         sender_id: adminId,
         recipient_type: 'league',
         recipient_id: leagueId,
@@ -675,8 +677,10 @@ export async function seed(): Promise<SeedData> {
     // Maintenance announcement
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const maintenanceCommId = uuidv4();
     const [maintenanceComm] = await db.insertInto('communications')
       .values({
+        id: maintenanceCommId,
         sender_id: adminId,
         recipient_type: 'league',
         recipient_id: leagueId,
@@ -702,8 +706,10 @@ export async function seed(): Promise<SeedData> {
     });
 
     // Anonymous system announcement
+    const systemCommId = uuidv4();
     const [systemComm] = await db.insertInto('communications')
       .values({
+        id: systemCommId,
         recipient_type: 'league',
         recipient_id: leagueId,
         type: 'system' as CommunicationType,

@@ -154,7 +154,7 @@ export interface MatchTable {
 }
 
 export interface StatsTable {
-  id: Generated<number>;
+  id: string;
   team_id: string;
   league_id: string;
   matches_played: number;
@@ -166,8 +166,8 @@ export interface StatsTable {
 }
 
 export interface CommunicationTable {
-  id: Generated<number>;
-  sender_id?: string;
+  id: string;
+  sender_id?: string | null;
   recipient_type: 'league' | 'team' | 'user';
   recipient_id: string;
   type: CommunicationType;

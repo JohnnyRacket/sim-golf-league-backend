@@ -51,6 +51,37 @@ export class LocationsService {
   }
 
   /**
+   * Find coordinates from an address string
+   * This is a stub method that would normally call a geocoding service
+   */
+  async findCoordinatesFromAddress(address: string): Promise<{ x: number; y: number } | null> {
+    try {
+      // In a real implementation, this would call a geocoding service
+      // For now, return mock coordinates
+      
+      // Generate deterministic but random-looking coordinates based on address string
+      // This ensures the same address always gets the same coordinates
+      const hash = Array.from(address).reduce((acc, char) => {
+        return acc + char.charCodeAt(0);
+      }, 0);
+      
+      // Generate latitude (x) between 25 and 50 (roughly covers US)
+      const latitude = 25 + (hash % 25);
+      
+      // Generate longitude (y) between -65 and -125 (roughly covers US)
+      const longitude = -65 - (hash % 60);
+      
+      return {
+        x: parseFloat(latitude.toFixed(6)),
+        y: parseFloat(longitude.toFixed(6))
+      };
+    } catch (error) {
+      console.error(`Error finding coordinates: ${error}`);
+      return null;
+    }
+  }
+
+  /**
    * Get location by ID with owner details
    */
   async getLocationById(id: string): Promise<LocationDetail | null> {

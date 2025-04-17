@@ -95,8 +95,8 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         senderId 
       } = request.body;
 
-      // Use the current user's ID if sender is not specified
-      const actualSenderId = senderId || request.user.id.toString();
+      // Only use current user's ID if sender is not specified explicitly as null
+      const actualSenderId = senderId === null ? null : (senderId || request.user.id.toString());
       
       const newCommunication = await createCommunication({
         recipientType: recipientType as 'league' | 'team' | 'user',

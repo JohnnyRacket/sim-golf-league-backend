@@ -99,7 +99,7 @@ export interface SeedMatchResultSubmission {
 }
 
 export interface SeedCommunication {
-  id: number;
+  id: string;
   sender_id?: string;
   recipient_type: 'league' | 'team' | 'user';
   recipient_id: string;

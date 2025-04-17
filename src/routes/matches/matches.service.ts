@@ -8,6 +8,7 @@ import {
   UserMatchSummary, 
   ManagerInfo 
 } from "./matches.types";
+import { v4 as uuidv4 } from 'uuid';
 
 export class MatchesService {
   private db: Kysely<Database>;
@@ -688,8 +689,10 @@ export class MatchesService {
             .execute();
         } else {
           // Create new stats entry
+          const statId = uuidv4(); // Generate UUID for new stat
           await transaction.insertInto('stats')
             .values({
+              id: statId,
               team_id: teamUpdate.teamId,
               league_id: leagueId,
               matches_played: 1,

@@ -9,9 +9,9 @@ describe('Communications API (E2E)', () => {
   let user2Id: string;
   let leagueId: string;
   let team1Id: string;
-  let leagueCommId: number;
-  let maintenanceCommId: number;
-  let systemCommId: number;
+  let leagueCommId: string;
+  let maintenanceCommId: string;
+  let systemCommId: string;
 
   beforeAll(() => {
     // Get IDs from seeded data for testing
@@ -23,11 +23,11 @@ describe('Communications API (E2E)', () => {
     
     // Find the specific communication IDs
     leagueCommId = seedData.communications.find(c => 
-      c.type === 'league' && c.title === 'Welcome to the Spring 2024 League')?.id || 0;
+      c.type === 'league' && c.title === 'Welcome to the Spring 2024 League')?.id || '';
     maintenanceCommId = seedData.communications.find(c => 
-      c.type === 'maintenance')?.id || 0;
+      c.type === 'maintenance')?.id || '';
     systemCommId = seedData.communications.find(c => 
-      c.type === 'system')?.id || 0;
+      c.type === 'system')?.id || '';
   });
 
   // Helper functions for login
@@ -218,7 +218,7 @@ describe('Communications API (E2E)', () => {
   describe('Error handling', () => {
     test('Returns 404 for non-existent communication ID', async () => {
       await loginAsAdmin();
-      const nonExistentId = 9999;
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
       const response = await api.get(`/communications/${nonExistentId}`);
       expect(response.status).toBe(404);
     });

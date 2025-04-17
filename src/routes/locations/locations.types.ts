@@ -35,7 +35,6 @@ export interface CreateLocationBody {
   banner_url?: string | null;
   website_url?: string | null;
   phone?: string | null;
-  coordinates?: { x: number; y: number } | null;
 }
 
 export interface UpdateLocationBody {
@@ -45,7 +44,7 @@ export interface UpdateLocationBody {
   banner_url?: string | null;
   website_url?: string | null;
   phone?: string | null;
-  coordinates?: { x: number; y: number } | null;
+  coordinates?: { x: number; y: number } | null; // Used internally, not exposed in the API schema
 }
 
 // Schema definitions
@@ -116,15 +115,7 @@ export const createLocationSchema = {
     logo_url: { type: 'string', nullable: true },
     banner_url: { type: 'string', nullable: true },
     website_url: { type: 'string', nullable: true },
-    phone: { type: 'string', nullable: true },
-    coordinates: { 
-      type: 'object', 
-      nullable: true,
-      properties: {
-        x: { type: 'number' },
-        y: { type: 'number' }
-      }
-    }
+    phone: { type: 'string', nullable: true }
   },
   required: ['name', 'address']
 } as const;
@@ -137,15 +128,7 @@ export const updateLocationSchema = {
     logo_url: { type: 'string', nullable: true },
     banner_url: { type: 'string', nullable: true },
     website_url: { type: 'string', nullable: true },
-    phone: { type: 'string', nullable: true },
-    coordinates: { 
-      type: 'object', 
-      nullable: true,
-      properties: {
-        x: { type: 'number' },
-        y: { type: 'number' }
-      }
-    }
+    phone: { type: 'string', nullable: true }
   }
 } as const;
 

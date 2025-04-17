@@ -92,7 +92,15 @@ export async function locationRoutes(fastify: FastifyInstance) {
     }
   }, async (request, reply) => {
     try {
-      const { name, address } = request.body;
+      const { 
+        name, 
+        address, 
+        logo_url, 
+        banner_url, 
+        website_url, 
+        phone
+      } = request.body;
+      
       const userId = request.user.id.toString();
       const username = request.user.username;
       
@@ -102,10 +110,18 @@ export async function locationRoutes(fastify: FastifyInstance) {
         `Owner: ${username}`
       );
       
+      // Look up coordinates from address
+      const coordinates = await locationsService.findCoordinatesFromAddress(address);
+      
       // Create the location
       const location = await locationsService.createLocation(ownerId, {
         name,
-        address
+        address,
+        logo_url,
+        banner_url,
+        website_url,
+        phone,
+        coordinates
       });
       
       reply.code(201).send({
@@ -151,6 +167,12 @@ export async function locationRoutes(fastify: FastifyInstance) {
       if (!isOwner && !request.user.roles.includes('admin')) {
         reply.code(403).send({ error: 'You are not authorized to update this location' });
         return;
+      }
+      
+      // If address is updated, recalculate coordinates
+      if (updateData.address) {
+        const coordinates = await locationsService.findCoordinatesFromAddress(updateData.address);
+        updateData.coordinates = coordinates;
       }
       
       // Update location

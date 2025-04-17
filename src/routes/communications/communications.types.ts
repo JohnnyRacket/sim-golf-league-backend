@@ -3,7 +3,7 @@ import { CommunicationType } from '../../types/enums';
 
 // Basic communication schema
 export const communicationSchema = Type.Object({
-  id: Type.Number(),
+  id: Type.String({ format: 'uuid' }),
   sender_id: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
   recipient_type: Type.Enum({
     league: 'league',

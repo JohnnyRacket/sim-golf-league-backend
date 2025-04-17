@@ -12,6 +12,9 @@ function runCommand(command) {
   }
 }
 
+// Capture command line arguments (everything after --)
+const testArgs = process.argv.slice(2).join(' ');
+
 console.log(chalk.cyan('🧪 Starting E2E tests...'));
 console.log(chalk.yellow('🔧 Setting up test environment...'));
 
@@ -19,9 +22,10 @@ console.log(chalk.yellow('🔧 Setting up test environment...'));
 console.log(chalk.yellow('🧹 Cleaning up previous containers...'));
 runCommand('docker-compose -f docker-compose.e2e.yml down -v');
 
-// Build and start the e2e test environment
-console.log(chalk.green('🚀 Starting Docker containers...'));
-const success = runCommand('docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit');
+// Build and start the e2e test environment with arguments
+console.log(chalk.green(`🚀 Starting Docker containers with args: ${testArgs}`));
+// Pass the test arguments to the Docker environment using environment variables
+const success = runCommand(`JEST_ARGS="${testArgs}" docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit`);
 
 // Clean up
 console.log(chalk.yellow('🧹 Cleaning up test environment...'));
