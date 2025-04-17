@@ -6,7 +6,8 @@ import {
   MatchStatus,
   NotificationType,
   MatchResultStatus,
-  CommunicationType
+  CommunicationType,
+  HandednessType
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -27,6 +28,11 @@ export interface SeedLocation {
   owner_id: string;
   name: string;
   address: string;
+  logo_url?: string;
+  banner_url?: string;
+  website_url?: string;
+  phone?: string;
+  coordinates?: { x: number; y: number };
   city?: string;
   state?: string;
   zip?: string;
@@ -104,6 +110,15 @@ export interface SeedCommunication {
   sent_at: Date;
 }
 
+export interface SeedBay {
+  id: string;
+  location_id: string;
+  bay_number: string;
+  max_people: number;
+  handedness: HandednessType;
+  details?: Record<string, unknown>;
+}
+
 export interface SeedTokens {
   admin: string;
   user: string;
@@ -120,5 +135,6 @@ export interface SeedData {
   notifications: SeedNotification[];
   matchResultSubmissions: SeedMatchResultSubmission[];
   communications: SeedCommunication[];
+  bays: SeedBay[];
   tokens: SeedTokens;
 } 

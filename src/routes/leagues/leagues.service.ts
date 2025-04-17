@@ -1,6 +1,6 @@
 import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
-import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus } from '../../types/database';
+import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek } from '../../types/database';
 import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, OwnerInfo, TeamInfo, LeagueMember } from './leagues.types';
 
 export class LeaguesService {
@@ -560,8 +560,14 @@ export class LeaguesService {
     end_date: string | Date;
     description?: string;
     max_teams?: number;
-    simulator_settings?: Record<string, any>;
+    simulator_settings?: Record<string, unknown>;
     status?: LeagueStatus;
+    banner_image_url?: string;
+    cost?: number;
+    payment_type?: PaymentType;
+    day_of_week?: DayOfWeek;
+    start_time?: string;
+    bays?: string[];
   }): Promise<LeagueBasic> {
     try {
       const { 
@@ -572,7 +578,13 @@ export class LeaguesService {
         description, 
         max_teams = 8, 
         simulator_settings = {}, 
-        status = 'pending' 
+        status = 'pending',
+        banner_image_url,
+        cost,
+        payment_type = 'upfront',
+        day_of_week,
+        start_time,
+        bays
       } = data;
 
       const leagueId = uuidv4();
@@ -587,7 +599,13 @@ export class LeaguesService {
           description,
           max_teams,
           simulator_settings,
-          status: status as LeagueStatus
+          status: status as LeagueStatus,
+          banner_image_url,
+          cost,
+          payment_type,
+          day_of_week,
+          start_time,
+          bays
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -607,8 +625,14 @@ export class LeaguesService {
     end_date?: string | Date;
     description?: string;
     max_teams?: number;
-    simulator_settings?: Record<string, any>;
+    simulator_settings?: Record<string, unknown>;
     status?: LeagueStatus;
+    banner_image_url?: string;
+    cost?: number;
+    payment_type?: PaymentType;
+    day_of_week?: DayOfWeek;
+    start_time?: string;
+    bays?: string[];
   }): Promise<LeagueBasic | null> {
     try {
       // Process date fields if they exist

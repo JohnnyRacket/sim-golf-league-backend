@@ -51,6 +51,7 @@ afterAll(async () => {
     await db.deleteFrom('league_membership_requests').execute();
     await db.deleteFrom('communications').execute(); // Delete communications before users
     await db.deleteFrom('leagues').execute();
+    await db.deleteFrom('bays').execute(); // Delete bays before locations
     await db.deleteFrom('locations').execute();
     await db.deleteFrom('owners').execute();
     await db.deleteFrom('users').execute();

@@ -10,7 +10,8 @@ import {
   NotificationType,
   MatchResultStatus,
   CommunicationType,
-  LeagueMemberRole
+  LeagueMemberRole,
+  HandednessType
 } from '../../../src/types/database';
 import { 
   SeedData, 
@@ -23,7 +24,8 @@ import {
   SeedMatch, 
   SeedNotification,
   SeedMatchResultSubmission,
-  SeedCommunication
+  SeedCommunication,
+  SeedBay
 } from './types';
 
 // Use the SeedData interface directly
@@ -44,6 +46,7 @@ export async function seed(): Promise<SeedData> {
     notifications: [],
     matchResultSubmissions: [],
     communications: [],
+    bays: [],
     tokens: {
       admin: '',
       user: ''
@@ -133,7 +136,12 @@ export async function seed(): Promise<SeedData> {
         id: locationId,
         owner_id: ownerId,
         name: 'Test Golf Club',
-        address: '123 Fairway Drive'
+        address: '123 Fairway Drive',
+        logo_url: 'https://example.com/test-golf-club-logo.png',
+        banner_url: 'https://example.com/test-golf-club-banner.jpg',
+        website_url: 'https://testgolfclub.example.com',
+        phone: '+1 (555) 123-4567',
+        coordinates: '(40.7128,-74.0060)' // New York coordinates as example
       })
       .execute();
     
@@ -141,7 +149,98 @@ export async function seed(): Promise<SeedData> {
       id: locationId,
       owner_id: ownerId,
       name: 'Test Golf Club',
-      address: '123 Fairway Drive'
+      address: '123 Fairway Drive',
+      logo_url: 'https://example.com/test-golf-club-logo.png',
+      banner_url: 'https://example.com/test-golf-club-banner.jpg',
+      website_url: 'https://testgolfclub.example.com',
+      phone: '+1 (555) 123-4567',
+      coordinates: { x: 40.7128, y: -74.0060 } // New York coordinates as example
+    });
+    
+    // After creating the location, add bays
+    const bay1Id = uuidv4();
+    await db.insertInto('bays')
+      .values({
+        id: bay1Id,
+        location_id: locationId,
+        bay_number: 'Bay-1',
+        max_people: 4,
+        handedness: 'both' as HandednessType,
+        details: {
+          simulator_model: 'TrackMan 4',
+          premium_features: ['club_analysis', 'ball_tracking'],
+          has_refreshments: true
+        }
+      })
+      .execute();
+    
+    result.bays.push({
+      id: bay1Id,
+      location_id: locationId,
+      bay_number: 'Bay-1',
+      max_people: 4,
+      handedness: 'both',
+      details: {
+        simulator_model: 'TrackMan 4',
+        premium_features: ['club_analysis', 'ball_tracking'],
+        has_refreshments: true
+      }
+    });
+    
+    const bay2Id = uuidv4();
+    await db.insertInto('bays')
+      .values({
+        id: bay2Id,
+        location_id: locationId,
+        bay_number: 'Bay-2',
+        max_people: 6,
+        handedness: 'right' as HandednessType,
+        details: {
+          simulator_model: 'GC Quad',
+          premium_features: ['putting_analysis', 'virtual_courses'],
+          room_size: 'large'
+        }
+      })
+      .execute();
+    
+    result.bays.push({
+      id: bay2Id,
+      location_id: locationId,
+      bay_number: 'Bay-2',
+      max_people: 6,
+      handedness: 'right',
+      details: {
+        simulator_model: 'GC Quad',
+        premium_features: ['putting_analysis', 'virtual_courses'],
+        room_size: 'large'
+      }
+    });
+    
+    const bay3Id = uuidv4();
+    await db.insertInto('bays')
+      .values({
+        id: bay3Id,
+        location_id: locationId,
+        bay_number: 'Bay-3',
+        max_people: 4,
+        handedness: 'left' as HandednessType,
+        details: {
+          simulator_model: 'Foresight Sports',
+          left_handed_clubs: true
+        }
+      })
+      .execute();
+    
+    result.bays.push({
+      id: bay3Id,
+      location_id: locationId,
+      bay_number: 'Bay-3',
+      max_people: 4,
+      handedness: 'left',
+      details: {
+        simulator_model: 'Foresight Sports',
+        left_handed_clubs: true
+      }
     });
     
     // Create a league

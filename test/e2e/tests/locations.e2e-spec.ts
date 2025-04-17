@@ -125,7 +125,45 @@ describe('Locations API (E2E)', () => {
   describe('Location management', () => {
     let createdLocationId: string;
     
-    test('Admin can create a new location', async () => {
+    test('Admin can create a new location with all fields', async () => {
+      await loginAsAdmin();
+      
+      const newLocation = {
+        name: 'Test Location with All Fields',
+        address: '789 Test Boulevard',
+        logo_url: 'https://example.com/logo.png',
+        banner_url: 'https://example.com/banner.jpg',
+        website_url: 'https://golfclub.example.com',
+        phone: '+1 (555) 123-4567',
+        coordinates: {
+          x: 37.7749, // latitude
+          y: -122.4194 // longitude
+        }
+      };
+      
+      const response = await api.post('/locations', newLocation);
+      
+      expect(response.status).toBe(201);
+      expect(response.data).toHaveProperty('message', 'Location created successfully');
+      expect(response.data).toHaveProperty('id');
+      
+      createdLocationId = response.data.id;
+      
+      // Verify all fields were saved correctly
+      const getResponse = await api.get(`/locations/${createdLocationId}`);
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.data).toHaveProperty('name', newLocation.name);
+      expect(getResponse.data).toHaveProperty('address', newLocation.address);
+      expect(getResponse.data).toHaveProperty('logo_url', newLocation.logo_url);
+      expect(getResponse.data).toHaveProperty('banner_url', newLocation.banner_url);
+      expect(getResponse.data).toHaveProperty('website_url', newLocation.website_url);
+      expect(getResponse.data).toHaveProperty('phone', newLocation.phone);
+      expect(getResponse.data).toHaveProperty('coordinates');
+      expect(getResponse.data.coordinates).toHaveProperty('x', newLocation.coordinates.x);
+      expect(getResponse.data.coordinates).toHaveProperty('y', newLocation.coordinates.y);
+    });
+    
+    test('Admin can create a new location with minimal fields', async () => {
       await loginAsAdmin();
       
       const newLocation = {
@@ -139,15 +177,26 @@ describe('Locations API (E2E)', () => {
       expect(response.data).toHaveProperty('message', 'Location created successfully');
       expect(response.data).toHaveProperty('id');
       
-      createdLocationId = response.data.id;
+      // No need to check ID again if we already have one from previous test
+      if (!createdLocationId) {
+        createdLocationId = response.data.id;
+      }
     });
     
-    test('Admin can update a location', async () => {
+    test('Admin can update a location with new fields', async () => {
       await loginAsAdmin();
       
       const updateData = {
         name: 'Updated Test Location',
-        address: '789 Updated Boulevard'
+        address: '789 Updated Boulevard',
+        logo_url: 'https://example.com/updated-logo.png',
+        banner_url: 'https://example.com/updated-banner.jpg',
+        website_url: 'https://updated.example.com',
+        phone: '+1 (555) 987-6543',
+        coordinates: {
+          x: 34.0522,
+          y: -118.2437
+        }
       };
       
       const response = await api.put(`/locations/${createdLocationId}`, updateData);
@@ -159,6 +208,34 @@ describe('Locations API (E2E)', () => {
       const getResponse = await api.get(`/locations/${createdLocationId}`);
       expect(getResponse.data).toHaveProperty('name', 'Updated Test Location');
       expect(getResponse.data).toHaveProperty('address', '789 Updated Boulevard');
+      expect(getResponse.data).toHaveProperty('logo_url', updateData.logo_url);
+      expect(getResponse.data).toHaveProperty('banner_url', updateData.banner_url);
+      expect(getResponse.data).toHaveProperty('website_url', updateData.website_url);
+      expect(getResponse.data).toHaveProperty('phone', updateData.phone);
+      expect(getResponse.data).toHaveProperty('coordinates');
+      expect(getResponse.data.coordinates).toHaveProperty('x', updateData.coordinates.x);
+      expect(getResponse.data.coordinates).toHaveProperty('y', updateData.coordinates.y);
+    });
+    
+    test('Admin can update only specific fields of a location', async () => {
+      await loginAsAdmin();
+      
+      // Only update logo_url and phone
+      const partialUpdate = {
+        logo_url: 'https://example.com/new-logo.png',
+        phone: '+1 (555) 111-2222'
+      };
+      
+      const response = await api.put(`/locations/${createdLocationId}`, partialUpdate);
+      
+      expect(response.status).toBe(200);
+      
+      // Verify only the specified fields were updated
+      const getResponse = await api.get(`/locations/${createdLocationId}`);
+      expect(getResponse.data).toHaveProperty('logo_url', partialUpdate.logo_url);
+      expect(getResponse.data).toHaveProperty('phone', partialUpdate.phone);
+      expect(getResponse.data).toHaveProperty('name', 'Updated Test Location'); // unchanged
+      expect(getResponse.data).toHaveProperty('address', '789 Updated Boulevard'); // unchanged
     });
     
     test('Admin can delete a location with no leagues', async () => {

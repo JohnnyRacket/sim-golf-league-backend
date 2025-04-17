@@ -1,7 +1,18 @@
 import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
-import { Database } from '../../types/database';
+import { Database, HandednessType } from '../../types/database';
 import { LocationBasic, LocationDetail, OwnerInfo } from './locations.types';
+
+export interface BayBasic {
+  id: string;
+  location_id: string;
+  bay_number: string;
+  max_people: number;
+  handedness: HandednessType;
+  details?: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
 
 export class LocationsService {
   private db: Kysely<Database>;
@@ -19,7 +30,21 @@ export class LocationsService {
         .selectAll()
         .execute();
       
-      return locations as LocationBasic[];
+      // Convert PostgreSQL POINT to our format
+      return locations.map(location => {
+        const result = { ...location } as LocationBasic;
+        if (result.coordinates) {
+          // PostgreSQL POINT is returned as a string like "(x,y)" - parse it to our format
+          const match = /\(([^,]+),([^)]+)\)/.exec(result.coordinates as unknown as string);
+          if (match) {
+            result.coordinates = {
+              x: parseFloat(match[1]),
+              y: parseFloat(match[2])
+            };
+          }
+        }
+        return result;
+      });
     } catch (error) {
       throw new Error(`Failed to get locations: ${error}`);
     }
@@ -33,16 +58,29 @@ export class LocationsService {
       const location = await this.db.selectFrom('locations')
         .selectAll()
         .where('id', '=', id)
-        .executeTakeFirst() as LocationBasic | undefined;
+        .executeTakeFirst();
       
       if (!location) {
         return null;
       }
       
+      // Convert location to our expected format
+      const locationResult = { ...location } as LocationBasic;
+      if (locationResult.coordinates) {
+        // PostgreSQL POINT is returned as a string like "(x,y)" - parse it to our format
+        const match = /\(([^,]+),([^)]+)\)/.exec(locationResult.coordinates as unknown as string);
+        if (match) {
+          locationResult.coordinates = {
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2])
+          };
+        }
+      }
+      
       // Get owner info
       const owner = await this.db.selectFrom('owners')
         .select(['id', 'name', 'user_id'])
-        .where('id', '=', location.owner_id)
+        .where('id', '=', locationResult.owner_id)
         .executeTakeFirst() as OwnerInfo | undefined;
       
       if (!owner) {
@@ -56,7 +94,7 @@ export class LocationsService {
         .executeTakeFirst();
       
       return {
-        ...location,
+        ...locationResult,
         owner,
         league_count: leagueCount?.count || 0
       };
@@ -149,10 +187,26 @@ export class LocationsService {
    */
   async createLocation(
     ownerId: string, 
-    data: { name: string; address: string; }
+    data: { 
+      name: string; 
+      address: string; 
+      logo_url?: string | null;
+      banner_url?: string | null;
+      website_url?: string | null;
+      phone?: string | null;
+      coordinates?: { x: number; y: number } | null;
+    }
   ): Promise<LocationBasic> {
     try {
-      const { name, address } = data;
+      const { 
+        name, 
+        address, 
+        logo_url = null, 
+        banner_url = null, 
+        website_url = null, 
+        phone = null, 
+        coordinates = null 
+      } = data;
       
       const locationId = uuidv4();
       
@@ -161,12 +215,30 @@ export class LocationsService {
           id: locationId,
           owner_id: ownerId,
           name,
-          address
+          address,
+          logo_url,
+          banner_url,
+          website_url,
+          phone,
+          coordinates: coordinates ? `(${coordinates.x},${coordinates.y})` : null
         })
         .returningAll()
         .executeTakeFirstOrThrow();
       
-      return result as LocationBasic;
+      // Transform Point to expected format if coordinates exist
+      const location = { ...result } as LocationBasic;
+      if (location.coordinates) {
+        // PostgreSQL POINT is returned as a string like "(x,y)" - parse it to our format
+        const match = /\(([^,]+),([^)]+)\)/.exec(location.coordinates as unknown as string);
+        if (match) {
+          location.coordinates = {
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2])
+          };
+        }
+      }
+      
+      return location;
     } catch (error) {
       throw new Error(`Failed to create location: ${error}`);
     }
@@ -177,16 +249,52 @@ export class LocationsService {
    */
   async updateLocation(
     id: string, 
-    data: { name?: string; address?: string; }
+    data: { 
+      name?: string; 
+      address?: string; 
+      logo_url?: string | null;
+      banner_url?: string | null;
+      website_url?: string | null;
+      phone?: string | null;
+      coordinates?: { x: number; y: number } | null;
+    }
   ): Promise<LocationBasic | null> {
     try {
+      // Create a new object with the input data
+      const { coordinates, ...rest } = data;
+      const updateData: any = { ...rest };
+      
+      // Handle coordinates conversion to PostgreSQL POINT
+      if (coordinates !== undefined) {
+        updateData.coordinates = coordinates === null 
+          ? null 
+          : `(${coordinates.x},${coordinates.y})`;
+      }
+      
       const result = await this.db.updateTable('locations')
-        .set(data)
+        .set(updateData)
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirst();
       
-      return result as LocationBasic | null;
+      if (!result) {
+        return null;
+      }
+      
+      // Transform Point to expected format if coordinates exist
+      const location = { ...result } as LocationBasic;
+      if (location.coordinates) {
+        // PostgreSQL POINT is returned as a string like "(x,y)" - parse it to our format
+        const match = /\(([^,]+),([^)]+)\)/.exec(location.coordinates as unknown as string);
+        if (match) {
+          location.coordinates = {
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2])
+          };
+        }
+      }
+      
+      return location;
     } catch (error) {
       throw new Error(`Failed to update location: ${error}`);
     }
@@ -214,6 +322,113 @@ export class LocationsService {
       return !!result;
     } catch (error) {
       throw new Error(`Failed to delete location: ${error}`);
+    }
+  }
+
+  /**
+   * Get all bays for a location
+   */
+  async getBaysByLocation(locationId: string): Promise<BayBasic[]> {
+    try {
+      const bays = await this.db.selectFrom('bays')
+        .selectAll()
+        .where('location_id', '=', locationId)
+        .execute();
+      
+      return bays as BayBasic[];
+    } catch (error) {
+      throw new Error(`Failed to get bays: ${error}`);
+    }
+  }
+
+  /**
+   * Get bay by ID
+   */
+  async getBayById(id: string): Promise<BayBasic | null> {
+    try {
+      const bay = await this.db.selectFrom('bays')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
+      
+      return bay as BayBasic | null;
+    } catch (error) {
+      throw new Error(`Failed to get bay: ${error}`);
+    }
+  }
+
+  /**
+   * Create a new bay
+   */
+  async createBay(
+    locationId: string,
+    data: {
+      bay_number: string;
+      max_people?: number;
+      handedness?: HandednessType;
+      details?: Record<string, unknown>;
+    }
+  ): Promise<BayBasic> {
+    try {
+      const { bay_number, max_people = 4, handedness = 'both', details = {} } = data;
+      
+      const bayId = uuidv4();
+      
+      const result = await this.db.insertInto('bays')
+        .values({
+          id: bayId,
+          location_id: locationId,
+          bay_number,
+          max_people,
+          handedness,
+          details
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      
+      return result as BayBasic;
+    } catch (error) {
+      throw new Error(`Failed to create bay: ${error}`);
+    }
+  }
+
+  /**
+   * Update an existing bay
+   */
+  async updateBay(
+    id: string,
+    data: {
+      bay_number?: string;
+      max_people?: number;
+      handedness?: HandednessType;
+      details?: Record<string, unknown>;
+    }
+  ): Promise<BayBasic | null> {
+    try {
+      const result = await this.db.updateTable('bays')
+        .set(data)
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirst();
+      
+      return result as BayBasic | null;
+    } catch (error) {
+      throw new Error(`Failed to update bay: ${error}`);
+    }
+  }
+
+  /**
+   * Delete a bay
+   */
+  async deleteBay(id: string): Promise<boolean> {
+    try {
+      const result = await this.db.deleteFrom('bays')
+        .where('id', '=', id)
+        .execute();
+      
+      return !!result;
+    } catch (error) {
+      throw new Error(`Failed to delete bay: ${error}`);
     }
   }
 } 

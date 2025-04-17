@@ -14,6 +14,9 @@ CREATE TYPE league_request_status AS ENUM ('pending', 'approved', 'rejected', 'c
 CREATE TYPE notification_type AS ENUM ('league_invite', 'team_invite', 'match_reminder', 'match_result', 'team_join_request', 'league_join_request', 'system_message');
 CREATE TYPE match_result_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE communication_type AS ENUM ('system', 'league', 'maintenance', 'advertisement', 'schedule');
+CREATE TYPE payment_type AS ENUM ('weekly', 'monthly', 'upfront', 'free');
+CREATE TYPE day_of_week AS ENUM ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday');
+CREATE TYPE handedness_type AS ENUM ('left', 'right', 'both');
 
 -- Create users table
 CREATE TABLE users (
@@ -41,8 +44,26 @@ CREATE TABLE locations (
     owner_id UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     address TEXT NOT NULL,
+    logo_url TEXT,
+    banner_url TEXT,
+    website_url TEXT,
+    phone VARCHAR(50),
+    coordinates POINT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create bays table
+CREATE TABLE bays (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+    bay_number VARCHAR(20) NOT NULL,
+    max_people INTEGER NOT NULL DEFAULT 4,
+    handedness handedness_type NOT NULL DEFAULT 'both',
+    details JSONB DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(location_id, bay_number)
 );
 
 -- Create leagues table
@@ -56,6 +77,12 @@ CREATE TABLE leagues (
     max_teams INTEGER DEFAULT 8,
     simulator_settings JSONB DEFAULT NULL,
     status league_status NOT NULL DEFAULT 'active',
+    banner_image_url TEXT,
+    cost DECIMAL(10, 2),
+    payment_type payment_type DEFAULT 'weekly',
+    day_of_week day_of_week,
+    start_time TIME,
+    bays JSONB, -- Store bay numbers or IDs as a JSON array
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -273,5 +300,11 @@ CREATE TRIGGER update_notifications_updated_at
 -- Create trigger for match result submissions table
 CREATE TRIGGER update_match_result_submissions_updated_at
     BEFORE UPDATE ON match_result_submissions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger for bays table
+CREATE TRIGGER update_bays_updated_at
+    BEFORE UPDATE ON bays
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column(); 

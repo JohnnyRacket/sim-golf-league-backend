@@ -1,9 +1,17 @@
+import { HandednessType } from '../../types/database';
+import { BayBasic } from './locations.service';
+
 // Location data types
 export interface LocationBasic {
   id: string;
   name: string;
   address: string;
   owner_id: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  coordinates?: { x: number; y: number } | null; // Store as {x, y} for latitude and longitude
   created_at: Date;
   updated_at: Date;
 }
@@ -23,11 +31,21 @@ export interface LocationDetail extends LocationBasic {
 export interface CreateLocationBody {
   name: string;
   address: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  coordinates?: { x: number; y: number } | null;
 }
 
 export interface UpdateLocationBody {
   name?: string;
   address?: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  coordinates?: { x: number; y: number } | null;
 }
 
 // Schema definitions
@@ -38,6 +56,18 @@ export const locationSchema = {
     name: { type: 'string' },
     address: { type: 'string' },
     owner_id: { type: 'string', format: 'uuid' },
+    logo_url: { type: 'string', nullable: true },
+    banner_url: { type: 'string', nullable: true },
+    website_url: { type: 'string', nullable: true },
+    phone: { type: 'string', nullable: true },
+    coordinates: { 
+      type: 'object', 
+      nullable: true,
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' }
+      }
+    },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' }
   },
@@ -51,6 +81,18 @@ export const locationDetailSchema = {
     name: { type: 'string' },
     address: { type: 'string' },
     owner_id: { type: 'string', format: 'uuid' },
+    logo_url: { type: 'string', nullable: true },
+    banner_url: { type: 'string', nullable: true },
+    website_url: { type: 'string', nullable: true },
+    phone: { type: 'string', nullable: true },
+    coordinates: { 
+      type: 'object', 
+      nullable: true,
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' }
+      }
+    },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' },
     owner: {
@@ -70,7 +112,19 @@ export const createLocationSchema = {
   type: 'object',
   properties: {
     name: { type: 'string' },
-    address: { type: 'string' }
+    address: { type: 'string' },
+    logo_url: { type: 'string', nullable: true },
+    banner_url: { type: 'string', nullable: true },
+    website_url: { type: 'string', nullable: true },
+    phone: { type: 'string', nullable: true },
+    coordinates: { 
+      type: 'object', 
+      nullable: true,
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' }
+      }
+    }
   },
   required: ['name', 'address']
 } as const;
@@ -79,7 +133,19 @@ export const updateLocationSchema = {
   type: 'object',
   properties: {
     name: { type: 'string' },
-    address: { type: 'string' }
+    address: { type: 'string' },
+    logo_url: { type: 'string', nullable: true },
+    banner_url: { type: 'string', nullable: true },
+    website_url: { type: 'string', nullable: true },
+    phone: { type: 'string', nullable: true },
+    coordinates: { 
+      type: 'object', 
+      nullable: true,
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' }
+      }
+    }
   }
 } as const;
 
@@ -91,6 +157,26 @@ export const locationParamsSchema = {
   required: ['id']
 } as const;
 
+export interface LocationWithDetails {
+  id: string;
+  name: string;
+  address: string;
+  owner_id: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  coordinates?: { x: number; y: number } | null;
+  owner?: {
+    id: string;
+    name: string;
+    user_id: string;
+  };
+  league_count?: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export const locationWithDetailsSchema = {
   type: 'object',
   properties: {
@@ -98,6 +184,18 @@ export const locationWithDetailsSchema = {
     name: { type: 'string' },
     address: { type: 'string' },
     owner_id: { type: 'string', format: 'uuid' },
+    logo_url: { type: 'string', nullable: true },
+    banner_url: { type: 'string', nullable: true },
+    website_url: { type: 'string', nullable: true },
+    phone: { type: 'string', nullable: true },
+    coordinates: { 
+      type: 'object', 
+      nullable: true,
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' }
+      }
+    },
     owner: {
       type: 'object',
       properties: {
@@ -133,17 +231,71 @@ export interface LocationParams {
   id: string;
 }
 
-export interface LocationWithDetails {
-  id: string;
-  name: string;
-  address: string;
-  owner_id: string;
-  owner?: {
-    id: string;
-    name: string;
-    user_id: string;
-  };
-  league_count?: number;
-  created_at: Date;
-  updated_at: Date;
-} 
+// Add bay schemas and types
+export interface CreateBayBody {
+  bay_number: string;
+  max_people?: number;
+  handedness?: HandednessType;
+  details?: Record<string, unknown>;
+}
+
+export interface UpdateBayBody {
+  bay_number?: string;
+  max_people?: number;
+  handedness?: HandednessType;
+  details?: Record<string, unknown>;
+}
+
+export const baySchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    location_id: { type: 'string', format: 'uuid' },
+    bay_number: { type: 'string' },
+    max_people: { type: 'integer', minimum: 1 },
+    handedness: { type: 'string', enum: ['left', 'right', 'both'] },
+    details: { 
+      type: 'object',
+      additionalProperties: true
+    },
+    created_at: { type: 'string', format: 'date-time' },
+    updated_at: { type: 'string', format: 'date-time' }
+  },
+  required: ['id', 'location_id', 'bay_number', 'max_people', 'handedness']
+};
+
+export const createBaySchema = {
+  type: 'object',
+  properties: {
+    bay_number: { type: 'string' },
+    max_people: { type: 'integer', minimum: 1 },
+    handedness: { type: 'string', enum: ['left', 'right', 'both'] },
+    details: {
+      type: 'object',
+      additionalProperties: true
+    }
+  },
+  required: ['bay_number']
+};
+
+export const updateBaySchema = {
+  type: 'object',
+  properties: {
+    bay_number: { type: 'string' },
+    max_people: { type: 'integer', minimum: 1 },
+    handedness: { type: 'string', enum: ['left', 'right', 'both'] },
+    details: {
+      type: 'object',
+      additionalProperties: true
+    }
+  }
+};
+
+export const bayParamsSchema = {
+  type: 'object',
+  properties: {
+    locationId: { type: 'string', format: 'uuid' },
+    bayId: { type: 'string', format: 'uuid' }
+  },
+  required: ['locationId', 'bayId']
+}; 

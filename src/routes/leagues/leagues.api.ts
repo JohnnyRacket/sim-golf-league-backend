@@ -214,7 +214,13 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         description, 
         max_teams = 8, 
         simulator_settings = {},
-        status = 'pending'
+        status = 'pending',
+        banner_image_url,
+        cost,
+        payment_type,
+        day_of_week,
+        start_time,
+        bays
       } = request.body;
       
       const userId = request.user.id.toString();
@@ -236,7 +242,13 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         description,
         max_teams,
         simulator_settings,
-        status
+        status,
+        banner_image_url,
+        cost,
+        payment_type,
+        day_of_week,
+        start_time,
+        bays
       });
       
       reply.code(201).send({ 

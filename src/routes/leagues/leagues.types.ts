@@ -1,4 +1,4 @@
-import { LeagueStatus, LeagueMemberRole, LeagueRequestStatus } from '../../types/database';
+import { LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek } from '../../types/database';
 
 // League data types
 export interface LeagueBasic {
@@ -9,8 +9,14 @@ export interface LeagueBasic {
   end_date: Date;
   description?: string;
   max_teams: number;
-  simulator_settings?: Record<string, any>;
+  simulator_settings?: Record<string, unknown>;
   status: LeagueStatus;
+  banner_image_url?: string;
+  cost?: number;
+  payment_type?: PaymentType;
+  day_of_week?: DayOfWeek;
+  start_time?: string;
+  bays?: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -78,8 +84,14 @@ export interface CreateLeagueBody {
   end_date: string;
   description?: string;
   max_teams?: number;
-  simulator_settings?: Record<string, any>;
+  simulator_settings?: Record<string, unknown>;
   status?: LeagueStatus;
+  banner_image_url?: string;
+  cost?: number;
+  payment_type?: PaymentType;
+  day_of_week?: DayOfWeek;
+  start_time?: string;
+  bays?: string[];
 }
 
 export interface UpdateLeagueBody {
@@ -88,8 +100,14 @@ export interface UpdateLeagueBody {
   end_date?: string;
   description?: string;
   max_teams?: number;
-  simulator_settings?: Record<string, any>;
+  simulator_settings?: Record<string, unknown>;
   status?: LeagueStatus;
+  banner_image_url?: string;
+  cost?: number;
+  payment_type?: PaymentType;
+  day_of_week?: DayOfWeek;
+  start_time?: string;
+  bays?: string[];
 }
 
 export interface CreateMembershipRequestBody {
@@ -118,6 +136,15 @@ export const leagueSchema = {
       additionalProperties: true
     },
     status: { type: 'string', enum: ['pending', 'active', 'completed'] },
+    banner_image_url: { type: 'string' },
+    cost: { type: 'number' },
+    payment_type: { type: 'string', enum: ['weekly', 'monthly', 'upfront', 'free'] },
+    day_of_week: { type: 'string', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
+    start_time: { type: 'string', format: 'time' },
+    bays: { 
+      type: 'array',
+      items: { type: 'string', format: 'uuid' }
+    },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' }
   },
@@ -270,7 +297,16 @@ export const createLeagueSchema = {
       type: 'object',
       additionalProperties: true
     },
-    status: { type: 'string', enum: ['pending', 'active', 'completed'] }
+    status: { type: 'string', enum: ['pending', 'active', 'completed'] },
+    banner_image_url: { type: 'string' },
+    cost: { type: 'number' },
+    payment_type: { type: 'string', enum: ['weekly', 'monthly', 'upfront', 'free'] },
+    day_of_week: { type: 'string', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
+    start_time: { type: 'string', format: 'time' },
+    bays: { 
+      type: 'array',
+      items: { type: 'string', format: 'uuid' }
+    }
   },
   required: ['name', 'location_id', 'start_date', 'end_date']
 };
@@ -287,7 +323,16 @@ export const updateLeagueSchema = {
       type: 'object',
       additionalProperties: true
     },
-    status: { type: 'string', enum: ['pending', 'active', 'completed'] }
+    status: { type: 'string', enum: ['pending', 'active', 'completed'] },
+    banner_image_url: { type: 'string' },
+    cost: { type: 'number' },
+    payment_type: { type: 'string', enum: ['weekly', 'monthly', 'upfront', 'free'] },
+    day_of_week: { type: 'string', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
+    start_time: { type: 'string', format: 'time' },
+    bays: { 
+      type: 'array',
+      items: { type: 'string', format: 'uuid' }
+    }
   }
 };
 

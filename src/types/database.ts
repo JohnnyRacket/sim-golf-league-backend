@@ -12,6 +12,9 @@ export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancell
 export type NotificationType = 'league_invite' | 'team_invite' | 'match_reminder' | 'match_result' | 'team_join_request' | 'league_join_request' | 'system_message';
 export type MatchResultStatus = 'pending' | 'approved' | 'rejected';
 export type CommunicationType = 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule';
+export type PaymentType = 'weekly' | 'monthly' | 'upfront' | 'free';
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type HandednessType = 'left' | 'right' | 'both';
 
 export interface Database {
   users: UserTable;
@@ -28,6 +31,7 @@ export interface Database {
   communications: CommunicationTable;
   notifications: NotificationTable;
   match_result_submissions: MatchResultSubmissionTable;
+  bays: BayTable;
 }
 
 export interface UserTable {
@@ -53,6 +57,22 @@ export interface LocationTable {
   owner_id: string;
   name: string;
   address: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  coordinates?: string | null; // PostgreSQL POINT type stored as string
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface BayTable {
+  id: string;
+  location_id: string;
+  bay_number: string;
+  max_people: number;
+  handedness: HandednessType;
+  details?: Record<string, unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -65,8 +85,14 @@ export interface LeagueTable {
   end_date: Date;
   description?: string;
   max_teams: number;
-  simulator_settings?: Record<string, any>;
+  simulator_settings?: Record<string, unknown>;
   status: LeagueStatus;
+  banner_image_url?: string;
+  cost?: number;
+  payment_type?: PaymentType;
+  day_of_week?: DayOfWeek;
+  start_time?: string; // Store as string in HH:MM:SS format
+  bays?: string[]; // Array of bay IDs
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
