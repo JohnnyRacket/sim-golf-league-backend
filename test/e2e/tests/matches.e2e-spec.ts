@@ -375,6 +375,153 @@ describe('Matches API (E2E)', () => {
         expect(response.status).toBe(200);
       }
     });
+    
+    test('Admin can bulk update matches for a specific day', async () => {
+      await loginAsAdmin();
+      
+      // First create a few matches on the same day
+      const matchDate = new Date();
+      matchDate.setDate(matchDate.getDate() + 30); // Set to 30 days in the future
+      
+      // Make sure we have a clean date without time elements
+      const baseDate = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
+      
+      // Create three matches for testing bulk updates
+      const match1Time = new Date(baseDate);
+      match1Time.setHours(10, 0);
+      
+      const match2Time = new Date(baseDate);
+      match2Time.setHours(13, 0);
+      
+      const match3Time = new Date(baseDate);
+      match3Time.setHours(16, 0);
+      
+      // Store match IDs for later validation
+      const testMatchIds: string[] = [];
+      
+      // Create first match
+      const match1 = {
+        league_id: leagueId,
+        home_team_id: homeTeamId,
+        away_team_id: awayTeamId,
+        match_date: match1Time.toISOString(),
+        status: 'scheduled',
+        game_format: 'individual',
+        match_format: 'stroke_play',
+        scoring_format: 'gross'
+      };
+      
+      const response1 = await api.post('/matches', match1);
+      expect(response1.status).toBe(201);
+      testMatchIds.push(response1.data.id);
+      
+      // Create second match
+      const match2 = {
+        ...match1,
+        match_date: match2Time.toISOString()
+      };
+      
+      const response2 = await api.post('/matches', match2);
+      expect(response2.status).toBe(201);
+      testMatchIds.push(response2.data.id);
+      
+      // Create third match
+      const match3 = {
+        ...match1,
+        match_date: match3Time.toISOString()
+      };
+      
+      const response3 = await api.post('/matches', match3);
+      expect(response3.status).toBe(201);
+      testMatchIds.push(response3.data.id);
+      
+      // Now test the bulk update endpoint
+      
+      // Move all matches to next day and change format
+      const nextDay = new Date(baseDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      const bulkUpdateData = {
+        date: baseDate.toISOString().split('T')[0], // Just the date part YYYY-MM-DD
+        new_date: nextDay.toISOString(),
+        game_format: 'scramble',
+        match_format: 'match_play',
+        scoring_format: 'net'
+      };
+      
+      const bulkUpdateResponse = await api.put(`/matches/league/${leagueId}/day`, bulkUpdateData);
+      
+      expect(bulkUpdateResponse.status).toBe(200);
+      expect(bulkUpdateResponse.data).toHaveProperty('message');
+      expect(bulkUpdateResponse.data).toHaveProperty('matches_updated', 3);
+      expect(bulkUpdateResponse.data.matches.length).toBe(3);
+      
+      // Verify at least one match was updated correctly
+      const matchId = testMatchIds[0];
+      const verifyResponse = await api.get(`/matches/${matchId}`);
+      
+      expect(verifyResponse.status).toBe(200);
+      expect(verifyResponse.data).toHaveProperty('game_format', 'scramble');
+      expect(verifyResponse.data).toHaveProperty('match_format', 'match_play');
+      expect(verifyResponse.data).toHaveProperty('scoring_format', 'net');
+      
+      // Verify the date was updated - it should now be on the next day
+      const updatedDate = new Date(verifyResponse.data.match_date);
+      expect(updatedDate.getDate()).toBe(nextDay.getDate());
+      expect(updatedDate.getMonth()).toBe(nextDay.getMonth());
+      expect(updatedDate.getFullYear()).toBe(nextDay.getFullYear());
+    });
+  });
+  
+  describe('Bulk match update permissions', () => {
+    test('Regular users cannot bulk update matches', async () => {
+      await loginAsUser();
+      
+      const date = new Date();
+      
+      const bulkUpdateData = {
+        date: date.toISOString().split('T')[0],
+        game_format: 'scramble'
+      };
+      
+      const response = await api.put(`/matches/league/${leagueId}/day`, bulkUpdateData);
+      
+      expect(response.status).toBe(403);
+      expect(response.data).toHaveProperty('error');
+    });
+    
+    test('Bulk update requires at least one update field', async () => {
+      await loginAsAdmin();
+      
+      const date = new Date();
+      
+      const bulkUpdateData = {
+        date: date.toISOString().split('T')[0]
+        // Missing any update fields
+      };
+      
+      const response = await api.put(`/matches/league/${leagueId}/day`, bulkUpdateData);
+      
+      expect(response.status).toBe(400);
+      expect(response.data).toHaveProperty('error');
+    });
+    
+    test('Returns 404 for non-existent matches on a day', async () => {
+      await loginAsAdmin();
+      
+      const farFutureDate = new Date();
+      farFutureDate.setFullYear(farFutureDate.getFullYear() + 10); // 10 years in the future
+      
+      const bulkUpdateData = {
+        date: farFutureDate.toISOString().split('T')[0],
+        game_format: 'scramble'
+      };
+      
+      const response = await api.put(`/matches/league/${leagueId}/day`, bulkUpdateData);
+      
+      expect(response.status).toBe(404);
+      expect(response.data).toHaveProperty('error');
+    });
   });
 
   describe('Error handling', () => {

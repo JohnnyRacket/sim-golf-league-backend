@@ -720,4 +720,107 @@ export class MatchesService {
       console.error(`Error updating team stats for league ${leagueId}, teams ${homeTeamId} vs ${awayTeamId}:`, error);
     }
   }
+
+  /**
+   * Updates all matches for a specific day of a league
+   * @param leagueId - ID of the league
+   * @param date - Date string for which to update matches (YYYY-MM-DD)
+   * @param updates - Fields to update across all matches (match_date, game_format, match_format, scoring_format)
+   * @returns Object containing information about updated matches
+   */
+  async bulkUpdateMatchesForDay(
+    leagueId: string,
+    date: string,
+    updates: Partial<{
+      match_date: Date;
+      game_format: GameFormatType;
+      match_format: MatchFormatType;
+      scoring_format: ScoringFormatType;
+    }>
+  ): Promise<{
+    matches_updated: number;
+    matches: Array<{ id: string; match_date: Date }>;
+  }> {
+    try {
+      // Parse the date to get start and end times for the day
+      const targetDate = new Date(date);
+      const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+      
+      // First, find all matches for this league on the given day
+      const matchesToUpdate = await this.db.selectFrom('matches')
+        .select(['id', 'match_date'])
+        .where('league_id', '=', leagueId)
+        .where('match_date', '>=', startOfDay)
+        .where('match_date', '<=', endOfDay)
+        .execute();
+      
+      if (matchesToUpdate.length === 0) {
+        return {
+          matches_updated: 0,
+          matches: []
+        };
+      }
+      
+      // Extract match IDs for the update operation
+      const matchIds = matchesToUpdate.map(match => match.id);
+      
+      // Check if there are any actual updates to apply
+      if (Object.keys(updates).length === 0) {
+        return {
+          matches_updated: 0,
+          matches: matchesToUpdate.map(match => ({
+            id: match.id,
+            match_date: match.match_date
+          }))
+        };
+      }
+      
+      // Perform the update transaction
+      const updatedMatches = await this.db.transaction().execute(async (transaction) => {
+        // Build the update query with only the fields that need to be updated
+        let updateQuery = transaction.updateTable('matches');
+        
+        if (updates.match_date) {
+          updateQuery = updateQuery.set({ match_date: updates.match_date });
+        }
+        
+        if (updates.game_format) {
+          updateQuery = updateQuery.set({ game_format: updates.game_format });
+        }
+        
+        if (updates.match_format) {
+          updateQuery = updateQuery.set({ match_format: updates.match_format });
+        }
+        
+        if (updates.scoring_format) {
+          updateQuery = updateQuery.set({ scoring_format: updates.scoring_format });
+        }
+        
+        // Add the where clause to limit to the matches we want to update
+        updateQuery = updateQuery.where('id', 'in', matchIds);
+        
+        // Execute the update
+        await updateQuery.execute();
+        
+        // Return the updated matches
+        const updatedMatchesQuery = await transaction.selectFrom('matches')
+          .select(['id', 'match_date'])
+          .where('id', 'in', matchIds)
+          .execute();
+          
+        return updatedMatchesQuery;
+      });
+      
+      return {
+        matches_updated: updatedMatches.length,
+        matches: updatedMatches.map(match => ({
+          id: match.id,
+          match_date: match.match_date
+        }))
+      };
+    } catch (error) {
+      throw new Error(`Failed to bulk update matches: ${error}`);
+    }
+  }
 } 

@@ -336,3 +336,63 @@ export const createdMatchResponseSchema = {
   },
   required: ['message', 'id']
 };
+
+export interface BulkUpdateMatchesBody {
+  date: string; // Date in ISO format for which to update matches
+  new_date?: string; // Optional new date to move matches to
+  game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
+  match_format?: 'stroke_play' | 'match_play';
+  scoring_format?: 'net' | 'gross';
+}
+
+export interface BulkUpdateMatchesParams {
+  league_id: string;
+}
+
+export interface BulkUpdateMatchesResponse {
+  message: string;
+  matches_updated: number;
+  matches: {
+    id: string;
+    match_date: string;
+  }[];
+}
+
+export const bulkUpdateMatchesSchema = {
+  type: 'object',
+  properties: {
+    date: { type: 'string', format: 'date' },
+    new_date: { type: 'string', format: 'date-time' },
+    game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
+    match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
+    scoring_format: { type: 'string', enum: ['net', 'gross'] }
+  },
+  required: ['date']
+};
+
+export const bulkUpdateMatchesParamsSchema = {
+  type: 'object',
+  properties: {
+    league_id: { type: 'string', format: 'uuid' }
+  },
+  required: ['league_id']
+};
+
+export const bulkUpdateMatchesResponseSchema = {
+  type: 'object',
+  properties: {
+    message: { type: 'string' },
+    matches_updated: { type: 'integer' },
+    matches: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          match_date: { type: 'string', format: 'date-time' }
+        }
+      }
+    }
+  },
+  required: ['message', 'matches_updated', 'matches']
+};

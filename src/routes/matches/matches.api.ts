@@ -22,7 +22,12 @@ import {
   UpdateMatchBody,
   MatchGameBody,
   ScoreUpdateBody,
-  SubmitMatchResultsBody
+  SubmitMatchResultsBody,
+  BulkUpdateMatchesBody,
+  BulkUpdateMatchesParams,
+  bulkUpdateMatchesSchema,
+  bulkUpdateMatchesParamsSchema,
+  bulkUpdateMatchesResponseSchema
 } from './matches.types';
 
 export async function matchRoutes(fastify: FastifyInstance) {
@@ -528,6 +533,104 @@ export async function matchRoutes(fastify: FastifyInstance) {
       }
       
       reply.send({ message: 'Match result submitted successfully' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Bulk update matches for a day of a league (admin or manager only)
+  fastify.put<{
+    Params: BulkUpdateMatchesParams;
+    Body: BulkUpdateMatchesBody;
+  }>('/league/:league_id/day', {
+    preHandler: checkRole(['admin', 'manager']),
+    schema: {
+      description: 'Bulk update matches for a specific day of a league (admin or manager only)',
+      tags: ['matches'],
+      params: bulkUpdateMatchesParamsSchema,
+      body: bulkUpdateMatchesSchema,
+      response: {
+        200: bulkUpdateMatchesResponseSchema,
+        400: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { league_id } = request.params;
+      const { date, new_date, game_format, match_format, scoring_format } = request.body;
+      
+      // Check authorization
+      const isAdmin = request.user.roles.includes('admin');
+      let isAuthorized = isAdmin;
+      
+      if (!isAdmin) {
+        // Check if user is manager of this league
+        const manager = await matchesService.getLeagueManager(league_id);
+        
+        if (!manager) {
+          reply.code(404).send({ error: 'League not found' });
+          return;
+        }
+        
+        isAuthorized = manager.user_id.toString() === request.user.id.toString();
+      }
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to update matches in this league' });
+        return;
+      }
+      
+      // Prepare updates
+      const updates: Partial<{
+        match_date: Date;
+        game_format: GameFormatType;
+        match_format: MatchFormatType;
+        scoring_format: ScoringFormatType;
+      }> = {};
+      
+      // Validate and prepare the update data
+      if (new_date) {
+        updates.match_date = new Date(new_date);
+      }
+      
+      if (game_format) {
+        updates.game_format = game_format as GameFormatType;
+      }
+      
+      if (match_format) {
+        updates.match_format = match_format as MatchFormatType;
+      }
+      
+      if (scoring_format) {
+        updates.scoring_format = scoring_format as ScoringFormatType;
+      }
+      
+      // At least one update field is required
+      if (Object.keys(updates).length === 0) {
+        reply.code(400).send({ error: 'At least one field to update must be provided' });
+        return;
+      }
+      
+      // Perform the bulk update
+      const result = await matchesService.bulkUpdateMatchesForDay(league_id, date, updates);
+      
+      if (result.matches_updated === 0) {
+        reply.code(404).send({ error: 'No matches found for the specified date in this league' });
+        return;
+      }
+      
+      reply.send({
+        message: `Successfully updated ${result.matches_updated} matches`,
+        matches_updated: result.matches_updated,
+        matches: result.matches.map(match => ({
+          id: match.id,
+          match_date: match.match_date.toISOString()
+        }))
+      });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });
