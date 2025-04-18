@@ -20,6 +20,8 @@ CREATE TYPE handedness_type AS ENUM ('left', 'right', 'both');
 CREATE TYPE game_format_type AS ENUM ('scramble', 'best_ball', 'alternate_shot', 'individual');
 CREATE TYPE match_format_type AS ENUM ('stroke_play', 'match_play');
 CREATE TYPE scoring_format_type AS ENUM ('net', 'gross');
+CREATE TYPE scheduling_format_type AS ENUM ('round_robin', 'groups', 'swiss', 'ladder', 'custom');
+CREATE TYPE playoff_format_type AS ENUM ('none', 'single_elimination', 'double_elimination', 'round_robin');
 
 -- Create users table
 CREATE TABLE users (
@@ -86,6 +88,10 @@ CREATE TABLE leagues (
     day_of_week day_of_week,
     start_time TIME,
     bays JSONB, -- Store bay numbers or IDs as a JSON array
+    scheduling_format scheduling_format_type DEFAULT 'round_robin',
+    playoff_format playoff_format_type DEFAULT 'none',
+    playoff_size INTEGER DEFAULT 0,
+    prize_breakdown JSONB DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

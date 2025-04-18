@@ -1,6 +1,6 @@
 import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
-import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek } from '../../types/database';
+import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek, SchedulingFormatType, PlayoffFormatType } from '../../types/database';
 import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, OwnerInfo, TeamInfo, LeagueMember } from './leagues.types';
 
 export class LeaguesService {
@@ -568,6 +568,10 @@ export class LeaguesService {
     day_of_week?: DayOfWeek;
     start_time?: string;
     bays?: string[];
+    scheduling_format?: SchedulingFormatType;
+    playoff_format?: PlayoffFormatType;
+    playoff_size?: number;
+    prize_breakdown?: Record<string, unknown>;
   }): Promise<LeagueBasic> {
     try {
       const { 
@@ -584,7 +588,11 @@ export class LeaguesService {
         payment_type = 'upfront',
         day_of_week,
         start_time,
-        bays
+        bays,
+        scheduling_format = 'round_robin',
+        playoff_format = 'none',
+        playoff_size = 0,
+        prize_breakdown = null
       } = data;
 
       const leagueId = uuidv4();
@@ -605,7 +613,11 @@ export class LeaguesService {
           payment_type,
           day_of_week,
           start_time,
-          bays
+          bays,
+          scheduling_format,
+          playoff_format,
+          playoff_size,
+          prize_breakdown
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -633,6 +645,10 @@ export class LeaguesService {
     day_of_week?: DayOfWeek;
     start_time?: string;
     bays?: string[];
+    scheduling_format?: SchedulingFormatType;
+    playoff_format?: PlayoffFormatType;
+    playoff_size?: number;
+    prize_breakdown?: Record<string, unknown>;
   }): Promise<LeagueBasic | null> {
     try {
       // Process date fields if they exist
@@ -747,5 +763,235 @@ export class LeaguesService {
     } catch (error) {
       throw new Error(`Failed to get league standings: ${error}`);
     }
+  }
+
+  /**
+   * Get all active teams in a league
+   */
+  async getLeagueTeams(leagueId: string): Promise<TeamInfo[]> {
+    try {
+      const teams = await this.db.selectFrom('teams')
+        .select(['id', 'name', 'max_members'])
+        .where('league_id', '=', leagueId)
+        .where('status', '=', 'active')
+        .execute();
+      
+      // Get member count for each team
+      const teamsWithCount = await Promise.all(teams.map(async (team) => {
+        const memberCount = await this.db.selectFrom('team_members')
+          .select(({ fn }) => fn.count<number>('id').as('count'))
+          .where('team_id', '=', team.id)
+          .where('status', '=', 'active')
+          .executeTakeFirst();
+        
+        return {
+          ...team,
+          member_count: memberCount?.count || 0
+        };
+      }));
+      
+      return teamsWithCount as TeamInfo[];
+    } catch (error) {
+      throw new Error(`Failed to get league teams: ${error}`);
+    }
+  }
+
+  /**
+   * Generate schedule for a league based on the scheduling format
+   * @param leagueId - ID of the league
+   * @param teams - List of teams to schedule
+   * @param format - Scheduling format to use
+   * @returns Number of matches created
+   */
+  async generateSchedule(leagueId: string, teams: TeamInfo[], format: SchedulingFormatType): Promise<number> {
+    try {
+      // Get league details for scheduling parameters
+      const league = await this.db.selectFrom('leagues')
+        .select(['start_date', 'end_date', 'day_of_week', 'start_time'])
+        .where('id', '=', leagueId)
+        .executeTakeFirst();
+      
+      if (!league) {
+        throw new Error('League not found');
+      }
+      
+      // Setup match dates based on league parameters
+      const startDate = new Date(league.start_date);
+      const endDate = new Date(league.end_date);
+      
+      // Default match day and time if not set
+      const dayOfWeek = league.day_of_week || 'saturday';
+      const startTime = league.start_time || '10:00:00';
+      
+      // Calculate total weeks available for scheduling
+      const totalWeeks = Math.floor((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      
+      // Calculate first match date based on day of week
+      const firstMatchDate = this.getNextDayOfWeek(startDate, dayOfWeek);
+      
+      // Initialize array for match creation queries
+      const matches = [];
+      
+      // Get match dates for the entire schedule
+      const matchDates = this.generateMatchDates(firstMatchDate, dayOfWeek, totalWeeks);
+      
+      // Generate matches based on format
+      switch (format) {
+        case 'round_robin':
+          matches.push(...this.generateRoundRobinMatches(leagueId, teams, matchDates, startTime));
+          break;
+        case 'groups':
+          // Not implemented yet
+          throw new Error('Groups format not implemented yet');
+        case 'swiss':
+          // Not implemented yet
+          throw new Error('Swiss format not implemented yet');
+        case 'ladder':
+          // Not implemented yet
+          throw new Error('Ladder format not implemented yet');
+        case 'custom':
+          // Not implemented yet
+          throw new Error('Custom format not implemented yet');
+        default:
+          matches.push(...this.generateRoundRobinMatches(leagueId, teams, matchDates, startTime));
+      }
+      
+      // Batch insert all matches
+      if (matches.length > 0) {
+        await this.db.insertInto('matches')
+          .values(matches)
+          .execute();
+      }
+      
+      return matches.length;
+    } catch (error) {
+      throw new Error(`Failed to generate schedule: ${error}`);
+    }
+  }
+  
+  /**
+   * Generate match dates for the schedule based on the day of week
+   */
+  private generateMatchDates(startDate: Date, dayOfWeek: string, totalWeeks: number): Date[] {
+    const dates: Date[] = [];
+    let currentDate = new Date(startDate);
+    
+    for (let i = 0; i < totalWeeks; i++) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+    
+    return dates;
+  }
+  
+  /**
+   * Get the next date with the specified day of week
+   */
+  private getNextDayOfWeek(date: Date, dayOfWeek: string): Date {
+    const result = new Date(date);
+    const days = {
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+      sunday: 0
+    };
+    
+    const targetDay = days[dayOfWeek as keyof typeof days];
+    const currentDay = result.getDay();
+    
+    result.setDate(result.getDate() + (targetDay + 7 - currentDay) % 7);
+    
+    return result;
+  }
+  
+  /**
+   * Generate matches for a round-robin tournament
+   */
+  private generateRoundRobinMatches(leagueId: string, teams: TeamInfo[], matchDates: Date[], startTime: string): any[] {
+    if (teams.length < 2) return [];
+    
+    const matches = [];
+    const teamIds = teams.map(t => t.id);
+    
+    // If odd number of teams, add a "bye" team (null)
+    if (teamIds.length % 2 !== 0) {
+      teamIds.push('bye');
+    }
+    
+    const numberOfRounds = teamIds.length - 1;
+    const matchesPerRound = teamIds.length / 2;
+    
+    // Clone team IDs array for rotation algorithm
+    const rotatingTeams = [...teamIds];
+    const firstTeam = rotatingTeams.shift()!;
+    
+    for (let round = 0; round < numberOfRounds; round++) {
+      const roundMatchDate = matchDates[round % matchDates.length];
+      
+      if (!roundMatchDate) continue;
+      
+      const matchDateTime = this.combineDateAndTime(roundMatchDate, startTime);
+      
+      for (let match = 0; match < matchesPerRound; match++) {
+        const homeTeam = match === 0 ? firstTeam : rotatingTeams[match - 1];
+        const awayTeam = rotatingTeams[rotatingTeams.length - match];
+        
+        // Skip matches with the "bye" team
+        if (homeTeam === 'bye' || awayTeam === 'bye') continue;
+        
+        // Add home-and-away matches
+        matches.push({
+          id: uuidv4(),
+          league_id: leagueId,
+          home_team_id: homeTeam,
+          away_team_id: awayTeam,
+          match_date: new Date(matchDateTime),
+          status: 'scheduled',
+          created_at: undefined,
+          updated_at: undefined
+        });
+      }
+      
+      // Rotate teams for the next round (first team stays fixed)
+      rotatingTeams.push(rotatingTeams.shift()!);
+    }
+    
+    // Add return matches (home and away)
+    const returnMatches = matches.map(match => ({
+      id: uuidv4(),
+      league_id: match.league_id,
+      home_team_id: match.away_team_id,
+      away_team_id: match.home_team_id,
+      match_date: this.addWeeks(match.match_date, numberOfRounds),
+      status: 'scheduled',
+      created_at: undefined,
+      updated_at: undefined
+    }));
+    
+    return [...matches, ...returnMatches];
+  }
+  
+  /**
+   * Combine a date and time string into a single Date object
+   */
+  private combineDateAndTime(date: Date, timeString: string): Date {
+    const result = new Date(date);
+    const [hours, minutes, seconds] = timeString.split(':').map(Number);
+    
+    result.setHours(hours || 0, minutes || 0, seconds || 0);
+    
+    return result;
+  }
+  
+  /**
+   * Add a number of weeks to a date
+   */
+  private addWeeks(date: Date, weeks: number): Date {
+    const result = new Date(date);
+    result.setDate(result.getDate() + weeks * 7);
+    return result;
   }
 } 

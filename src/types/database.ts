@@ -18,6 +18,8 @@ export type HandednessType = 'left' | 'right' | 'both';
 export type GameFormatType = 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
 export type MatchFormatType = 'stroke_play' | 'match_play';
 export type ScoringFormatType = 'net' | 'gross';
+export type SchedulingFormatType = 'round_robin' | 'groups' | 'swiss' | 'ladder' | 'custom';
+export type PlayoffFormatType = 'none' | 'single_elimination' | 'double_elimination' | 'round_robin';
 
 export interface Database {
   users: UserTable;
@@ -96,6 +98,10 @@ export interface LeagueTable {
   day_of_week?: DayOfWeek;
   start_time?: string; // Store as string in HH:MM:SS format
   bays?: string[]; // Array of bay IDs
+  scheduling_format: SchedulingFormatType;
+  playoff_format: PlayoffFormatType;
+  playoff_size: number;
+  prize_breakdown: unknown | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

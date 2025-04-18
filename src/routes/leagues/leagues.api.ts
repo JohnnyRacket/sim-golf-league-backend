@@ -220,7 +220,11 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         payment_type,
         day_of_week,
         start_time,
-        bays
+        bays,
+        scheduling_format,
+        playoff_format,
+        playoff_size,
+        prize_breakdown
       } = request.body;
       
       const userId = request.user.id.toString();
@@ -248,7 +252,11 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         payment_type,
         day_of_week,
         start_time,
-        bays
+        bays,
+        scheduling_format,
+        playoff_format,
+        playoff_size,
+        prize_breakdown
       });
       
       reply.code(201).send({ 
@@ -794,6 +802,68 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       }
       
       reply.send({ message: 'Membership request rejected' });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Generate schedule for a league (manager only)
+  fastify.post<{ Params: { id: string } }>('/:id/generate-schedule', {
+    preHandler: checkRole(['manager']),
+    schema: {
+      description: 'Generate a schedule for a league (manager only)',
+      tags: ['leagues'],
+      params: leagueParamsSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            matches_created: { type: 'integer' }
+          }
+        },
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const userId = request.user.id.toString();
+      
+      // Check if league exists
+      const league = await leaguesService.getLeagueById(id);
+      
+      if (!league) {
+        reply.code(404).send({ error: 'League not found' });
+        return;
+      }
+      
+      // Check if user is authorized to generate schedule
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, userId);
+      
+      if (!isAuthorized) {
+        reply.code(403).send({ error: 'You are not authorized to generate schedule for this league' });
+        return;
+      }
+      
+      // Get all active teams in the league
+      const teams = await leaguesService.getLeagueTeams(id);
+      
+      if (teams.length < 2) {
+        reply.code(400).send({ error: 'At least two teams are required to generate a schedule' });
+        return;
+      }
+      
+      // Generate matches based on scheduling format
+      const matchesCreated = await leaguesService.generateSchedule(id, teams, league.scheduling_format);
+      
+      reply.send({ 
+        message: 'League schedule generated successfully', 
+        matches_created: matchesCreated 
+      });
     } catch (error) {
       request.log.error(error);
       reply.code(500).send({ error: 'Internal server error' });

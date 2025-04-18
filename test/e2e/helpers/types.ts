@@ -7,7 +7,9 @@ import {
   NotificationType,
   MatchResultStatus,
   CommunicationType,
-  HandednessType
+  HandednessType,
+  SchedulingFormatType,
+  PlayoffFormatType
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -47,6 +49,9 @@ export interface SeedLeague {
   end_date: Date;
   max_teams: number;
   status: LeagueStatus;
+  scheduling_format: SchedulingFormatType;
+  playoff_format: PlayoffFormatType;
+  playoff_size: number;
 }
 
 export interface SeedTeam {

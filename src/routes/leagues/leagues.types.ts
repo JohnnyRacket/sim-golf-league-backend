@@ -1,4 +1,4 @@
-import { LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek } from '../../types/database';
+import { LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek, SchedulingFormatType, PlayoffFormatType } from '../../types/database';
 
 // League data types
 export interface LeagueBasic {
@@ -17,6 +17,10 @@ export interface LeagueBasic {
   day_of_week?: DayOfWeek;
   start_time?: string;
   bays?: string[];
+  scheduling_format: SchedulingFormatType;
+  playoff_format: PlayoffFormatType;
+  playoff_size: number;
+  prize_breakdown?: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -92,6 +96,10 @@ export interface CreateLeagueBody {
   day_of_week?: DayOfWeek;
   start_time?: string;
   bays?: string[];
+  scheduling_format?: SchedulingFormatType;
+  playoff_format?: PlayoffFormatType;
+  playoff_size?: number;
+  prize_breakdown?: Record<string, unknown>;
 }
 
 export interface UpdateLeagueBody {
@@ -108,6 +116,10 @@ export interface UpdateLeagueBody {
   day_of_week?: DayOfWeek;
   start_time?: string;
   bays?: string[];
+  scheduling_format?: SchedulingFormatType;
+  playoff_format?: PlayoffFormatType;
+  playoff_size?: number;
+  prize_breakdown?: Record<string, unknown>;
 }
 
 export interface CreateMembershipRequestBody {
@@ -144,6 +156,13 @@ export const leagueSchema = {
     bays: { 
       type: 'array',
       items: { type: 'string', format: 'uuid' }
+    },
+    scheduling_format: { type: 'string', enum: ['round_robin', 'groups', 'swiss', 'ladder', 'custom'] },
+    playoff_format: { type: 'string', enum: ['none', 'single_elimination', 'double_elimination', 'round_robin'] },
+    playoff_size: { type: 'integer', minimum: 0 },
+    prize_breakdown: {
+      type: 'object',
+      additionalProperties: true
     },
     created_at: { type: 'string', format: 'date-time' },
     updated_at: { type: 'string', format: 'date-time' }
@@ -306,6 +325,13 @@ export const createLeagueSchema = {
     bays: { 
       type: 'array',
       items: { type: 'string', format: 'uuid' }
+    },
+    scheduling_format: { type: 'string', enum: ['round_robin', 'groups', 'swiss', 'ladder', 'custom'] },
+    playoff_format: { type: 'string', enum: ['none', 'single_elimination', 'double_elimination', 'round_robin'] },
+    playoff_size: { type: 'integer', minimum: 0 },
+    prize_breakdown: {
+      type: 'object',
+      additionalProperties: true
     }
   },
   required: ['name', 'location_id', 'start_date', 'end_date']
@@ -332,6 +358,13 @@ export const updateLeagueSchema = {
     bays: { 
       type: 'array',
       items: { type: 'string', format: 'uuid' }
+    },
+    scheduling_format: { type: 'string', enum: ['round_robin', 'groups', 'swiss', 'ladder', 'custom'] },
+    playoff_format: { type: 'string', enum: ['none', 'single_elimination', 'double_elimination', 'round_robin'] },
+    playoff_size: { type: 'integer', minimum: 0 },
+    prize_breakdown: {
+      type: 'object',
+      additionalProperties: true
     }
   }
 };

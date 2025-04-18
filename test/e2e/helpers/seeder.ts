@@ -11,7 +11,9 @@ import {
   MatchResultStatus,
   CommunicationType,
   LeagueMemberRole,
-  HandednessType
+  HandednessType,
+  SchedulingFormatType,
+  PlayoffFormatType
 } from '../../../src/types/database';
 import { 
   SeedData, 
@@ -253,7 +255,10 @@ export async function seed(): Promise<SeedData> {
         start_date: new Date('2024-03-01'),
         end_date: new Date('2024-06-30'),
         max_teams: 8,
-        status: 'active' as LeagueStatus
+        status: 'active' as LeagueStatus,
+        scheduling_format: 'round_robin' as SchedulingFormatType,
+        playoff_format: 'none' as PlayoffFormatType,
+        playoff_size: 0
       })
       .execute();
     
@@ -264,7 +269,10 @@ export async function seed(): Promise<SeedData> {
       start_date: new Date('2024-03-01'),
       end_date: new Date('2024-06-30'),
       max_teams: 8,
-      status: 'active'
+      status: 'active',
+      scheduling_format: 'round_robin',
+      playoff_format: 'none',
+      playoff_size: 0
     });
     
     // Create teams

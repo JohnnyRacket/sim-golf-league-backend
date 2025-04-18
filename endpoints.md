@@ -284,6 +284,10 @@
   - `max_teams`: Maximum teams (default: 8)
   - `simulator_settings`: Simulator settings
   - `status`: League status (default: 'pending')
+  - `scheduling_format`: Format for scheduling matches (default: 'round_robin')
+  - `playoff_format`: Format for playoffs (default: 'none')
+  - `playoff_size`: Number of teams in playoffs (default: 0)
+  - `prize_breakdown`: JSON object detailing prize distribution
 - **Responses**:
   - 201: League created
   - 400: Bad request
@@ -298,6 +302,18 @@
 - **Request Body**: Update league data
 - **Responses**:
   - 200: Success message
+  - 403: Forbidden
+  - 404: League not found
+  - 500: Internal server error
+
+### POST /leagues/:id/generate-schedule
+- **Description**: Generate a schedule for a league (manager only)
+- **Auth Required**: Yes (manager role)
+- **Params**:
+  - `id`: League ID
+- **Responses**:
+  - 200: Success message with number of matches created
+  - 400: Bad request - insufficient teams
   - 403: Forbidden
   - 404: League not found
   - 500: Internal server error
@@ -417,7 +433,7 @@
 - **Description**: Get upcoming matches for the current user
 - **Auth Required**: Yes
 - **Responses**:
-  - 200: Array of upcoming matches
+  - 200: Array of upcoming matches with format details
   - 500: Internal server error
 
 ### GET /matches
@@ -432,7 +448,7 @@
   - `user_id`: (optional) User ID
   - `include_stats`: (optional) Include stats flag
 - **Responses**:
-  - 200: Array of matches with team details
+  - 200: Array of matches with team details and format information
   - 500: Internal server error
 
 ### GET /matches/:id
@@ -441,7 +457,78 @@
 - **Params**:
   - `id`: Match ID
 - **Responses**:
-  - 200: Enhanced match data
+  - 200: Enhanced match data including format settings
+  - 404: Match not found
+  - 500: Internal server error
+
+### POST /matches
+- **Description**: Create a new match (admin or manager only)
+- **Auth Required**: Yes (admin or manager role)
+- **Request Body**:
+  - `league_id`: League ID
+  - `home_team_id`: Home team ID
+  - `away_team_id`: Away team ID
+  - `match_date`: Match date/time
+  - `simulator_settings`: (optional) Simulator settings
+  - `status`: (optional) Match status (default: 'scheduled')
+  - `game_format`: (optional) Game format type ('scramble', 'best_ball', 'alternate_shot', 'individual')
+  - `match_format`: (optional) Match format type ('stroke_play', 'match_play')
+  - `scoring_format`: (optional) Scoring format type ('net', 'gross')
+- **Responses**:
+  - 201: Match created
+  - 400: Invalid input
+  - 403: Forbidden - user is not admin or manager
+  - 404: League or team not found
+  - 500: Internal server error
+
+### PUT /matches/:id
+- **Description**: Update a match (admin or manager only)
+- **Auth Required**: Yes (admin or manager role)
+- **Params**:
+  - `id`: Match ID
+- **Request Body**:
+  - `match_date`: (optional) New match date/time
+  - `simulator_settings`: (optional) Updated simulator settings
+  - `status`: (optional) Updated match status
+  - `game_format`: (optional) Game format type ('scramble', 'best_ball', 'alternate_shot', 'individual')
+  - `match_format`: (optional) Match format type ('stroke_play', 'match_play')
+  - `scoring_format`: (optional) Scoring format type ('net', 'gross')
+- **Responses**:
+  - 200: Success message
+  - 403: Forbidden - user is not admin or manager
+  - 404: Match not found
+  - 500: Internal server error
+
+### PUT /matches/league/:league_id/day
+- **Description**: Bulk update matches for a specific day of a league (admin or manager only)
+- **Auth Required**: Yes (admin or manager role)
+- **Params**:
+  - `league_id`: League ID
+- **Request Body**:
+  - `date`: Date in YYYY-MM-DD format for which to update matches
+  - `new_date`: (optional) New date to move matches to
+  - `game_format`: (optional) Game format type ('scramble', 'best_ball', 'alternate_shot', 'individual')
+  - `match_format`: (optional) Match format type ('stroke_play', 'match_play')
+  - `scoring_format`: (optional) Scoring format type ('net', 'gross')
+- **Responses**:
+  - 200: Success message with number of matches updated and details
+  - 400: At least one update field must be provided
+  - 403: Forbidden - user is not admin or manager
+  - 404: No matches found for the specified date or league not found
+  - 500: Internal server error
+- **Note**: When updating match dates, the system automatically creates a communication and notifies all league members of the schedule change
+
+### PUT /matches/:id/result
+- **Description**: Submit match results (admin or manager only)
+- **Auth Required**: Yes (admin or manager role)
+- **Params**:
+  - `id`: Match ID
+- **Request Body**:
+  - `games`: Array of game results with player IDs and scores
+  - `status`: Match status (usually 'completed')
+- **Responses**:
+  - 200: Success message
+  - 403: Forbidden - user is not admin or manager
   - 404: Match not found
   - 500: Internal server error
 
@@ -459,6 +546,118 @@
 - **Auth Required**: Yes
 - **Responses**:
   - 200: Array of user match summaries
+  - 500: Internal server error
+
+## Communications
+
+### GET /communications
+- **Description**: Get all communications
+- **Auth Required**: Yes
+- **Responses**:
+  - 200: Array of communications
+  - 500: Internal server error
+
+### GET /communications/:id
+- **Description**: Get communication by ID
+- **Auth Required**: Yes
+- **Params**:
+  - `id`: Communication ID
+- **Responses**:
+  - 200: Communication details
+  - 404: Communication not found
+  - 500: Internal server error
+
+### GET /communications/league/:leagueId
+- **Description**: Get all communications for a specific league
+- **Auth Required**: Yes
+- **Params**:
+  - `leagueId`: League ID
+- **Responses**:
+  - 200: Array of league communications
+  - 500: Internal server error
+
+### POST /communications
+- **Description**: Create a new communication
+- **Auth Required**: Yes
+- **Request Body**:
+  - `recipientType`: Type of recipient ('league', 'team', or 'user')
+  - `recipientId`: ID of the recipient
+  - `type`: Communication type ('system', 'league', 'maintenance', 'advertisement', 'schedule')
+  - `title`: Communication title
+  - `message`: Communication message
+  - `expirationDate`: (optional) Date when the communication expires
+  - `senderId`: (optional) ID of the sender (null for anonymous)
+- **Responses**:
+  - 200: Newly created communication
+  - 500: Internal server error
+- **Note**: Creating a communication for a league automatically notifies all league members
+
+### DELETE /communications/:id
+- **Description**: Delete a communication
+- **Auth Required**: Yes (admin or sender)
+- **Params**:
+  - `id`: Communication ID
+- **Responses**:
+  - 200: Success message with deleted communication details
+  - 404: Communication not found
+  - 500: Internal server error
+
+## Notifications
+
+### GET /notifications
+- **Description**: Get all notifications for the current user
+- **Auth Required**: Yes
+- **Responses**:
+  - 200: Array of notifications
+  - 500: Internal server error
+
+### GET /notifications/unread-count
+- **Description**: Get count of unread notifications for the current user
+- **Auth Required**: Yes
+- **Responses**:
+  - 200: Object with count property
+  - 500: Internal server error
+
+### GET /notifications/:id
+- **Description**: Get notification by ID (only if owned by the current user)
+- **Auth Required**: Yes
+- **Params**:
+  - `id`: Notification ID
+- **Responses**:
+  - 200: Notification details
+  - 403: Forbidden - not your notification
+  - 404: Notification not found
+  - 500: Internal server error
+
+### PATCH /notifications/:id
+- **Description**: Mark a notification as read/unread
+- **Auth Required**: Yes
+- **Params**:
+  - `id`: Notification ID
+- **Request Body**:
+  - `is_read`: Boolean indicating read status
+- **Responses**:
+  - 200: Updated notification
+  - 403: Forbidden - not your notification
+  - 404: Notification not found
+  - 500: Internal server error
+
+### POST /notifications/mark-all-read
+- **Description**: Mark all notifications as read for the current user
+- **Auth Required**: Yes
+- **Responses**:
+  - 200: Success message
+  - 500: Internal server error
+
+### DELETE /notifications/:id
+- **Description**: Delete a notification
+- **Auth Required**: Yes
+- **Params**:
+  - `id`: Notification ID
+- **Responses**:
+  - 200: Success message
+  - 403: Forbidden - not your notification
+  - 404: Notification not found
   - 500: Internal server error
 
 ## Locations
