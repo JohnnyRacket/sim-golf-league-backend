@@ -13,5 +13,9 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   moduleFileExtensions: ['ts', 'js', 'json'],
-  rootDir: '.'
+  rootDir: '.',
+  reporters: [
+    'default',
+    '<rootDir>/test/e2e/summarize-failures.js'
+  ]
 }; 
