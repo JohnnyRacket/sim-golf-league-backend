@@ -4,10 +4,15 @@ import { AuthService } from './auth.service';
 import { 
   LoginBody, 
   RegisterBody, 
+  RequestPasswordResetBody,
+  VerifyPasswordResetBody,
   loginSchema, 
   registerSchema, 
+  requestPasswordResetSchema,
+  verifyPasswordResetSchema,
   tokenResponseSchema, 
-  errorResponseSchema 
+  errorResponseSchema,
+  successResponseSchema
 } from './auth.types';
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -70,6 +75,69 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       return authResult;
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Request password reset route
+  fastify.post<{ Body: RequestPasswordResetBody }>('/reset-password', {
+    schema: {
+      description: 'Request a password reset challenge',
+      tags: ['authentication'],
+      body: requestPasswordResetSchema,
+      response: {
+        200: successResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    const { email } = request.body;
+
+    try {
+      const result = await authService.createPasswordResetChallenge(email);
+      
+      // Always return success even if email not found (security best practice)
+      return reply.status(200).send({ 
+        success: true, 
+        message: 'If your email is registered, you will receive a password reset code shortly' 
+      });
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Verify password reset and set new password
+  fastify.post<{ Body: VerifyPasswordResetBody }>('/reset-password/verify', {
+    schema: {
+      description: 'Verify password reset challenge and set new password',
+      tags: ['authentication'],
+      body: verifyPasswordResetSchema,
+      response: {
+        200: successResponseSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    const { email, challengeCode, newPassword } = request.body;
+
+    try {
+      const result = await authService.verifyAndResetPassword(email, challengeCode, newPassword);
+      
+      if (!result.success) {
+        return reply.status(400).send({ 
+          error: result.message || 'Invalid or expired reset code' 
+        });
+      }
+
+      return reply.status(200).send({ 
+        success: true, 
+        message: 'Password reset successful' 
+      });
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Internal server error' });

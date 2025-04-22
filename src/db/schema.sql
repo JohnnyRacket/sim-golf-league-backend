@@ -217,6 +217,18 @@ CREATE TABLE notifications (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create password reset challenges table
+CREATE TABLE password_reset_challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    challenge_code VARCHAR(6) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create match result submissions table
 CREATE TABLE match_result_submissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -318,5 +330,11 @@ CREATE TRIGGER update_match_result_submissions_updated_at
 -- Create trigger for bays table
 CREATE TRIGGER update_bays_updated_at
     BEFORE UPDATE ON bays
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger for password reset challenges table
+CREATE TRIGGER update_password_reset_challenges_updated_at
+    BEFORE UPDATE ON password_reset_challenges
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column(); 

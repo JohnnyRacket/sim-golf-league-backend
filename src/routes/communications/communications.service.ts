@@ -2,6 +2,7 @@ import { db } from '../../db';
 import { NotFoundError } from '../../utils/errors';
 import { NotificationsService } from '../notifications/notifications.service';
 import { v4 as uuidv4 } from 'uuid';
+import { emailService } from '../email/email.service';
 
 interface CreateCommunicationParams {
   recipientType: 'league' | 'team' | 'user';
@@ -11,6 +12,19 @@ interface CreateCommunicationParams {
   message: string;
   expirationDate?: Date;
   senderId?: string | null;
+}
+
+interface SendEmailCommunicationParams {
+  title: string;
+  message: string;
+  recipientType: 'league' | 'team' | 'user';
+  recipientId: string;
+  senderId?: string | null;
+  saveToDb?: boolean;
+  includeImage?: {
+    filename: string;
+    content: Buffer;
+  };
 }
 
 // Initialize notifications service
@@ -89,6 +103,86 @@ export async function deleteCommunication(id: string) {
     .execute();
 
   return { message: 'Communication deleted successfully', deletedCommunication: communication };
+}
+
+/**
+ * Send a communication via email to users
+ * @param params - Email communication parameters
+ * @returns Result of the email sending operation
+ */
+export async function sendEmailCommunication(params: SendEmailCommunicationParams) {
+  const {
+    title,
+    message,
+    recipientType,
+    recipientId,
+    senderId,
+    saveToDb = true,
+    includeImage
+  } = params;
+
+  // Get recipients based on the type
+  let recipientEmails: { email: string }[] = [];
+
+  if (recipientType === 'league') {
+    // Get all league members' emails
+    const leagueMembers = await db.selectFrom('league_members')
+      .innerJoin('users', 'users.id', 'league_members.user_id')
+      .select('users.email')
+      .where('league_members.league_id', '=', recipientId)
+      .execute();
+    
+    recipientEmails = leagueMembers;
+  } else if (recipientType === 'team') {
+    // Get all team members' emails
+    const teamMembers = await db.selectFrom('team_members')
+      .innerJoin('users', 'users.id', 'team_members.user_id')
+      .select('users.email')
+      .where('team_members.team_id', '=', recipientId)
+      .execute();
+    
+    recipientEmails = teamMembers;
+  } else if (recipientType === 'user') {
+    // Get the specific user's email
+    const user = await db.selectFrom('users')
+      .select('email')
+      .where('id', '=', recipientId)
+      .executeTakeFirst();
+    
+    if (user) {
+      recipientEmails = [user];
+    }
+  }
+
+  // Save to database if requested
+  let communicationId: string | undefined;
+  if (saveToDb) {
+    const newCommunication = await createCommunication({
+      recipientType,
+      recipientId,
+      type: 'system', // Default type for email communications
+      title,
+      message,
+      senderId
+    });
+    
+    communicationId = newCommunication.id;
+  }
+
+  // Send the email
+  const emailResult = await emailService.sendBulkEmail({
+    title,
+    message,
+    users: recipientEmails,
+    image: includeImage
+  });
+
+  return {
+    success: emailResult.success,
+    error: emailResult.error,
+    communicationId,
+    recipients: recipientEmails.length
+  };
 }
 
 async function notifyLeagueMembers(leagueId: string, title: string, body: string, type: string, communicationId: string) {

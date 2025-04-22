@@ -37,6 +37,7 @@ export interface Database {
   notifications: NotificationTable;
   match_result_submissions: MatchResultSubmissionTable;
   bays: BayTable;
+  password_reset_challenges: PasswordResetChallengeTable;
 }
 
 export interface UserTable {
@@ -221,6 +222,17 @@ export interface MatchResultSubmissionTable {
   away_team_score: number;
   notes?: string;
   status: MatchResultStatus;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PasswordResetChallengeTable {
+  id: string;
+  user_id: string;
+  email: string;
+  challenge_code: string;
+  expires_at: Date;
+  used: boolean;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 } 

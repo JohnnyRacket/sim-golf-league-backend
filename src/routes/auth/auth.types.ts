@@ -1,4 +1,5 @@
 import { UserRole } from '../../types/database';
+import { Type } from '@sinclair/typebox';
 
 // Interface for login request
 export interface LoginBody {
@@ -27,46 +28,56 @@ export interface UserWithRoles {
   id: string;
   username: string;
   email: string;
-  roles: UserRole[];
+  roles: string[];
 }
 
 // Schema definitions
-export const loginSchema = {
-  type: 'object',
-  properties: {
-    email: { type: 'string', format: 'email' },
-    password: { type: 'string' }
-  },
-  required: ['email', 'password']
-};
+export const loginSchema = Type.Object({
+  email: Type.String({ format: 'email' }),
+  password: Type.String({ minLength: 6 })
+});
 
-export const registerSchema = {
-  type: 'object',
-  properties: {
-    username: { type: 'string', minLength: 3 },
-    email: { type: 'string', format: 'email' },
-    password: { type: 'string', minLength: 6 }
-  },
-  required: ['username', 'email', 'password']
-};
+export const registerSchema = Type.Object({
+  username: Type.String({ minLength: 3 }),
+  email: Type.String({ format: 'email' }),
+  password: Type.String({ minLength: 6 })
+});
 
-export const tokenResponseSchema = {
-  type: 'object',
-  properties: {
-    token: { type: 'string' },
-    user: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        username: { type: 'string' }
-      }
-    }
-  }
-};
+export const tokenResponseSchema = Type.Object({
+  token: Type.String(),
+  user: Type.Object({
+    id: Type.String(),
+    username: Type.String()
+  })
+});
 
-export const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' }
-  }
-}; 
+export const errorResponseSchema = Type.Object({
+  error: Type.String()
+});
+
+// Password reset request schema
+export interface RequestPasswordResetBody {
+  email: string;
+}
+
+export const requestPasswordResetSchema = Type.Object({
+  email: Type.String({ format: 'email' })
+});
+
+// Password reset verification schema
+export interface VerifyPasswordResetBody {
+  email: string;
+  challengeCode: string;
+  newPassword: string;
+}
+
+export const verifyPasswordResetSchema = Type.Object({
+  email: Type.String({ format: 'email' }),
+  challengeCode: Type.String({ minLength: 6, maxLength: 6 }),
+  newPassword: Type.String({ minLength: 6 })
+});
+
+export const successResponseSchema = Type.Object({
+  success: Type.Boolean(),
+  message: Type.String()
+}); 

@@ -5,6 +5,7 @@ import { UserRole } from '../../types/database';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { emailService } from '../email/email.service';
 
 export class AuthService {
   private db: Kysely<Database>;
@@ -112,6 +113,102 @@ export class AuthService {
       };
     } catch (error) {
       throw new Error(`Registration failed: ${error}`);
+    }
+  }
+
+  /**
+   * Create a password reset challenge and send email
+   * @param email User's email address
+   * @returns Success status and message
+   */
+  async createPasswordResetChallenge(email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Find user by email
+      const user = await this.db.selectFrom('users')
+        .select(['id', 'username', 'email'])
+        .where('email', '=', email)
+        .executeTakeFirst();
+
+      if (!user) {
+        // For security reasons, don't reveal that the email doesn't exist
+        return { success: true, message: 'If your email is registered, you will receive a password reset code.' };
+      }
+
+      // Generate a random 6-digit code
+      const challengeCode = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Set expiration time (30 minutes from now)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+
+      // Create or update password reset challenge
+      await this.db.insertInto('password_reset_challenges')
+        .values({
+          id: uuidv4(),
+          user_id: user.id,
+          email: user.email,
+          challenge_code: challengeCode,
+          expires_at: expiresAt,
+          used: false
+        })
+        .execute();
+
+      // Send email with code
+      await emailService.sendPasswordResetEmail({
+        recipientEmail: user.email,
+        username: user.username,
+        challengeCode
+      });
+
+      return { success: true, message: 'If your email is registered, you will receive a password reset code.' };
+    } catch (error) {
+      console.error('Error creating password reset challenge:', error);
+      return { success: false, message: 'Failed to process password reset request. Please try again later.' };
+    }
+  }
+
+  /**
+   * Verify challenge code and reset password
+   * @param email User's email address
+   * @param challengeCode The 6-digit challenge code
+   * @param newPassword The new password to set
+   * @returns Success status and message
+   */
+  async verifyAndResetPassword(email: string, challengeCode: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Find the latest challenge for this email
+      const challenge = await this.db.selectFrom('password_reset_challenges')
+        .selectAll()
+        .where('email', '=', email)
+        .where('challenge_code', '=', challengeCode)
+        .where('used', '=', false)
+        .where('expires_at', '>', new Date())
+        .orderBy('created_at', 'desc')
+        .executeTakeFirst();
+
+      if (!challenge) {
+        return { success: false, message: 'Invalid or expired code. Please request a new code.' };
+      }
+
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update the user's password
+      await this.db.updateTable('users')
+        .set({ password_hash: hashedPassword })
+        .where('id', '=', challenge.user_id)
+        .execute();
+
+      // Mark the challenge as used
+      await this.db.updateTable('password_reset_challenges')
+        .set({ used: true })
+        .where('id', '=', challenge.id)
+        .execute();
+
+      return { success: true, message: 'Password has been reset successfully. You can now log in with your new password.' };
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return { success: false, message: 'Failed to reset password. Please try again later.' };
     }
   }
 

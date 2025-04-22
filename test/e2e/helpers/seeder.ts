@@ -654,10 +654,10 @@ export async function seed(): Promise<SeedData> {
     });
 
     // Create communications
-    // League announcement
+    // League welcome announcement
     const now = new Date();
     const leagueCommId = uuidv4();
-    const [leagueComm] = await db.insertInto('communications')
+    await db.insertInto('communications')
       .values({
         id: leagueCommId,
         sender_id: adminId,
@@ -668,11 +668,10 @@ export async function seed(): Promise<SeedData> {
         message: 'Welcome everyone to our new season! We look forward to a great season.',
         sent_at: now
       })
-      .returningAll()
       .execute();
     
     result.communications.push({
-      id: leagueComm.id,
+      id: leagueCommId,
       sender_id: adminId,
       recipient_type: 'league',
       recipient_id: leagueId,
@@ -686,7 +685,7 @@ export async function seed(): Promise<SeedData> {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const maintenanceCommId = uuidv4();
-    const [maintenanceComm] = await db.insertInto('communications')
+    await db.insertInto('communications')
       .values({
         id: maintenanceCommId,
         sender_id: adminId,
@@ -698,11 +697,10 @@ export async function seed(): Promise<SeedData> {
         expiration_date: tomorrow,
         sent_at: now
       })
-      .returningAll()
       .execute();
     
     result.communications.push({
-      id: maintenanceComm.id,
+      id: maintenanceCommId,
       sender_id: adminId,
       recipient_type: 'league',
       recipient_id: leagueId,
@@ -715,7 +713,7 @@ export async function seed(): Promise<SeedData> {
 
     // Anonymous system announcement
     const systemCommId = uuidv4();
-    const [systemComm] = await db.insertInto('communications')
+    await db.insertInto('communications')
       .values({
         id: systemCommId,
         recipient_type: 'league',
@@ -725,11 +723,10 @@ export async function seed(): Promise<SeedData> {
         message: 'The system will undergo an update tonight. Please expect brief downtime.',
         sent_at: now
       })
-      .returningAll()
       .execute();
     
     result.communications.push({
-      id: systemComm.id,
+      id: systemCommId,
       recipient_type: 'league',
       recipient_id: leagueId,
       type: 'system',

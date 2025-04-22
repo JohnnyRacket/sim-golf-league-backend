@@ -1,5 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createCommunication, getCommunications, getCommunicationById, deleteCommunication, getCommunicationsForLeague } from './communications.service';
+import { 
+  createCommunication, 
+  getCommunications, 
+  getCommunicationById, 
+  deleteCommunication, 
+  getCommunicationsForLeague
+} from './communications.service';
 import { 
   communicationSchema,
   communicationListSchema,
