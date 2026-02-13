@@ -3,6 +3,10 @@ import { db } from "../../db";
 import { checkRole } from "../../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 import {
+  ensureLeagueWritable,
+  getLeagueIdFromMatch,
+} from "../../middleware/league-guard";
+import {
   MatchStatus,
   GameFormatType,
   MatchFormatType,
@@ -334,6 +338,8 @@ export async function matchRoutes(fastify: FastifyInstance) {
         bay_id,
       } = request.body;
 
+      await ensureLeagueWritable(db, league_id);
+
       // Check if user is admin
       const isAdmin = request.user.platform_role === "admin";
 
@@ -347,11 +353,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
 
         // Check if user is manager of this league
         if (manager.user_id.toString() !== request.user.id.toString()) {
-          reply
-            .code(403)
-            .send({
-              error: "You are not authorized to create matches in this league",
-            });
+          reply.code(403).send({
+            error: "You are not authorized to create matches in this league",
+          });
           return;
         }
       }
@@ -421,6 +425,10 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const updateData = request.body;
 
+      // Guard: check league is writable
+      const leagueId = await getLeagueIdFromMatch(db, id);
+      if (leagueId) await ensureLeagueWritable(db, leagueId);
+
       // Check if user is admin
       const isAdmin = request.user.platform_role === "admin";
 
@@ -453,8 +461,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
         data.match_format = updateData.match_format as MatchFormatType;
       if (updateData.scoring_format)
         data.scoring_format = updateData.scoring_format as ScoringFormatType;
-      if (updateData.bay_id !== undefined)
-        data.bay_id = updateData.bay_id;
+      if (updateData.bay_id !== undefined) data.bay_id = updateData.bay_id;
 
       // Update match using service
       const updatedMatch = await matchesService.updateMatch(id, data);
@@ -524,6 +531,10 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const { games } = request.body;
 
+      // Guard: check league is writable
+      const leagueId = await getLeagueIdFromMatch(db, id);
+      if (leagueId) await ensureLeagueWritable(db, leagueId);
+
       // Check authorization
       const isAdmin = request.user.platform_role === "admin";
       const isManager = await matchesService.isLeagueManager(
@@ -532,11 +543,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
       );
 
       if (!isAdmin && !isManager) {
-        reply
-          .code(403)
-          .send({
-            error: "You are not authorized to submit results for this match",
-          });
+        reply.code(403).send({
+          error: "You are not authorized to submit results for this match",
+        });
         return;
       }
 
@@ -617,6 +626,8 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { date, new_date, game_format, match_format, scoring_format } =
         request.body;
 
+      await ensureLeagueWritable(db, league_id);
+
       // Check authorization
       const isAdmin = request.user.platform_role === "admin";
       let isAuthorized = isAdmin;
@@ -634,11 +645,9 @@ export async function matchRoutes(fastify: FastifyInstance) {
       }
 
       if (!isAuthorized) {
-        reply
-          .code(403)
-          .send({
-            error: "You are not authorized to update matches in this league",
-          });
+        reply.code(403).send({
+          error: "You are not authorized to update matches in this league",
+        });
         return;
       }
 

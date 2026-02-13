@@ -4,6 +4,7 @@ import { checkRole, checkLeagueRole } from "../../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 import { LeagueMemberRole } from "../../types/database";
 import { NotFoundError, ValidationError } from "../../utils/errors";
+import { ensureLeagueWritable } from "../../middleware/league-guard";
 import {
   PaginationQuery,
   parsePagination,
@@ -230,6 +231,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         playoff_size,
         prize_breakdown,
         is_public,
+        series_id,
       } = request.body;
 
       const userId = request.user.id.toString();
@@ -239,11 +241,9 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         userId,
       );
       if (!isLocationManager) {
-        return reply
-          .code(403)
-          .send({
-            error: "You are not authorized to create leagues for this location",
-          });
+        return reply.code(403).send({
+          error: "You are not authorized to create leagues for this location",
+        });
       }
 
       const league = await leaguesService.createLeague({
@@ -266,6 +266,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         playoff_size,
         prize_breakdown,
         is_public,
+        series_id,
       });
 
       return reply.code(201).send({
@@ -297,6 +298,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const updateData = request.body;
       const userId = request.user.id.toString();
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
@@ -339,6 +342,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
       const userId = request.user.id.toString();
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
@@ -435,6 +440,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         role: LeagueMemberRole;
       };
 
+      await ensureLeagueWritable(db, id);
+
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
         throw new NotFoundError("League");
@@ -483,6 +490,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id, memberId } = request.params;
       const { role } = request.body;
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
@@ -539,6 +548,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { id, memberId } = request.params;
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
@@ -649,6 +660,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       const { requested_role, message } = request.body;
       const userId = request.user.id.toString();
 
+      await ensureLeagueWritable(db, id);
+
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
         throw new NotFoundError("League");
@@ -726,6 +739,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id, requestId } = request.params;
 
+      await ensureLeagueWritable(db, id);
+
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
         throw new NotFoundError("League");
@@ -770,6 +785,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { id, requestId } = request.params;
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
@@ -823,6 +840,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const userId = request.user.id.toString();
 
+      await ensureLeagueWritable(db, id);
+
       const league = await leaguesService.getLeagueById(id);
       if (!league) {
         throw new NotFoundError("League");
@@ -830,12 +849,9 @@ export async function leagueRoutes(fastify: FastifyInstance) {
 
       const isAuthorized = await leaguesService.isUserLeagueManager(id, userId);
       if (!isAuthorized) {
-        return reply
-          .code(403)
-          .send({
-            error:
-              "You are not authorized to generate schedule for this league",
-          });
+        return reply.code(403).send({
+          error: "You are not authorized to generate schedule for this league",
+        });
       }
 
       const teams = await leaguesService.getLeagueTeams(id);
@@ -886,6 +902,8 @@ export async function leagueRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
       const userId = request.user.id.toString();
+
+      await ensureLeagueWritable(db, id);
 
       const league = await leaguesService.getLeagueById(id);
       if (!league) {

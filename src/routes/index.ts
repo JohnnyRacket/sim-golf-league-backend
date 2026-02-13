@@ -11,7 +11,7 @@ import { communicationRoutes } from "./communications/communications.api";
 import { inviteRoutes } from "./invites/invites.api";
 import { handicapRoutes } from "./handicaps/handicaps.api";
 import { subscriptionRoutes } from "./subscriptions/subscriptions.api";
-import { seasonRoutes } from "./seasons/seasons.api";
+import { seriesRoutes } from "./series/series.api";
 import { paymentRoutes } from "./payments/payments.api";
 import { publicLeagueRoutes } from "./leagues/leagues-public.api";
 import { authenticate } from "../middleware/auth";
@@ -40,7 +40,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
     protectedRoutes.register(inviteRoutes, { prefix: "/invites" });
     protectedRoutes.register(handicapRoutes, { prefix: "/handicaps" });
     protectedRoutes.register(subscriptionRoutes, { prefix: "/subscriptions" });
-    protectedRoutes.register(seasonRoutes, { prefix: "/seasons" });
+    protectedRoutes.register(seriesRoutes, { prefix: "/series" });
     protectedRoutes.register(paymentRoutes, { prefix: "/payments" });
   });
 }

@@ -12,7 +12,7 @@ import {
   PlayoffFormatType,
   InviteStatus,
   LeagueMemberRole,
-} from '../../../src/types/database';
+} from "../../../src/types/database";
 
 export interface SeedUser {
   id: string;
@@ -108,7 +108,7 @@ export interface SeedMatchResultSubmission {
 export interface SeedCommunication {
   id: string;
   sender_id?: string;
-  recipient_type: 'league' | 'team' | 'user';
+  recipient_type: "league" | "team" | "user";
   recipient_id: string;
   type: CommunicationType;
   title: string;
@@ -126,7 +126,7 @@ export interface SeedBay {
   details?: Record<string, unknown>;
 }
 
-export interface SeedSeason {
+export interface SeedSeries {
   id: string;
   location_id: string;
   name: string;
@@ -153,6 +153,6 @@ export interface SeedData {
   matchResultSubmissions: SeedMatchResultSubmission[];
   communications: SeedCommunication[];
   bays: SeedBay[];
-  seasons: SeedSeason[];
+  series: SeedSeries[];
   tokens: SeedTokens;
 }

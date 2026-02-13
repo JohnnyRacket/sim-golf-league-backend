@@ -1,6 +1,6 @@
 import { Static, Type } from "@sinclair/typebox";
 
-export const createSeasonSchema = Type.Object({
+export const createSeriesSchema = Type.Object({
   location_id: Type.String({ format: "uuid" }),
   name: Type.String({ minLength: 1 }),
   description: Type.Optional(Type.String()),
@@ -8,7 +8,14 @@ export const createSeasonSchema = Type.Object({
   end_date: Type.String({ format: "date" }),
 });
 
-export const updateSeasonSchema = Type.Object({
+export const createSeriesFromLeagueSchema = Type.Object({
+  name: Type.String({ minLength: 1 }),
+  description: Type.Optional(Type.String()),
+  start_date: Type.Optional(Type.String({ format: "date" })),
+  end_date: Type.Optional(Type.String({ format: "date" })),
+});
+
+export const updateSeriesSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1 })),
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   start_date: Type.Optional(Type.String({ format: "date" })),
@@ -16,7 +23,7 @@ export const updateSeasonSchema = Type.Object({
   is_active: Type.Optional(Type.Boolean()),
 });
 
-export const seasonSchema = Type.Object({
+export const seriesSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
   location_id: Type.String({ format: "uuid" }),
   location_name: Type.String(),
@@ -29,8 +36,8 @@ export const seasonSchema = Type.Object({
   created_at: Type.String({ format: "date-time" }),
 });
 
-export const seasonDetailSchema = Type.Intersect([
-  seasonSchema,
+export const seriesDetailSchema = Type.Intersect([
+  seriesSchema,
   Type.Object({
     leagues: Type.Array(
       Type.Object({
@@ -48,8 +55,17 @@ export const locationIdParamsSchema = Type.Object({
   locationId: Type.String({ format: "uuid" }),
 });
 
-export const seasonIdParamsSchema = Type.Object({
-  seasonId: Type.String({ format: "uuid" }),
+export const seriesIdParamsSchema = Type.Object({
+  seriesId: Type.String({ format: "uuid" }),
+});
+
+export const leagueIdParamsSchema = Type.Object({
+  leagueId: Type.String({ format: "uuid" }),
+});
+
+export const seriesLeagueParamsSchema = Type.Object({
+  seriesId: Type.String({ format: "uuid" }),
+  leagueId: Type.String({ format: "uuid" }),
 });
 
 export const errorResponseSchema = Type.Object({
@@ -60,5 +76,8 @@ export const successMessageSchema = Type.Object({
   message: Type.String(),
 });
 
-export type CreateSeasonBody = Static<typeof createSeasonSchema>;
-export type UpdateSeasonBody = Static<typeof updateSeasonSchema>;
+export type CreateSeriesBody = Static<typeof createSeriesSchema>;
+export type CreateSeriesFromLeagueBody = Static<
+  typeof createSeriesFromLeagueSchema
+>;
+export type UpdateSeriesBody = Static<typeof updateSeriesSchema>;

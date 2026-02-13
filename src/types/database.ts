@@ -28,7 +28,8 @@ export type NotificationType =
   | "match_result"
   | "team_join_request"
   | "league_join_request"
-  | "system_message";
+  | "system_message"
+  | "series_new_league";
 export type MatchResultStatus = "pending" | "approved" | "rejected";
 export type CommunicationType =
   | "system"
@@ -92,7 +93,7 @@ export interface Database {
   password_reset_challenges: PasswordResetChallengeTable;
   league_invites: LeagueInviteTable;
   player_handicaps: PlayerHandicapTable;
-  seasons: SeasonTable;
+  series: SeriesTable;
   audit_logs: AuditLogTable;
 }
 
@@ -171,7 +172,7 @@ export interface LeagueTable {
   playoff_size: number;
   prize_breakdown: unknown | null;
   handicap_mode: HandicapMode;
-  season_id?: string | null;
+  series_id?: string | null;
   is_public: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -338,7 +339,7 @@ export interface PasswordResetChallengeTable {
   updated_at: Generated<Date>;
 }
 
-export interface SeasonTable {
+export interface SeriesTable {
   id: string;
   location_id: string;
   name: string;
