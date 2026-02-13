@@ -12,6 +12,7 @@ export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancell
 export type NotificationType = 'league_invite' | 'team_invite' | 'match_reminder' | 'match_result' | 'team_join_request' | 'league_join_request' | 'system_message';
 export type MatchResultStatus = 'pending' | 'approved' | 'rejected';
 export type CommunicationType = 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule';
+export type InviteStatus = 'pending' | 'accepted' | 'expired';
 export type PaymentType = 'weekly' | 'monthly' | 'upfront' | 'free';
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export type HandednessType = 'left' | 'right' | 'both';
@@ -20,6 +21,7 @@ export type MatchFormatType = 'stroke_play' | 'match_play';
 export type ScoringFormatType = 'net' | 'gross';
 export type SchedulingFormatType = 'round_robin' | 'groups' | 'swiss' | 'ladder' | 'custom';
 export type PlayoffFormatType = 'none' | 'single_elimination' | 'double_elimination' | 'round_robin';
+export type HandicapMode = 'none' | 'manual' | 'auto';
 
 export interface Database {
   users: UserTable;
@@ -38,6 +40,8 @@ export interface Database {
   match_result_submissions: MatchResultSubmissionTable;
   bays: BayTable;
   password_reset_challenges: PasswordResetChallengeTable;
+  league_invites: LeagueInviteTable;
+  player_handicaps: PlayerHandicapTable;
 }
 
 export interface UserTable {
@@ -46,6 +50,10 @@ export interface UserTable {
   email: string;
   password_hash: string;
   role: UserRole;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -103,6 +111,7 @@ export interface LeagueTable {
   playoff_format: PlayoffFormatType;
   playoff_size: number;
   prize_breakdown: unknown | null;
+  handicap_mode: HandicapMode;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -134,6 +143,7 @@ export interface TeamTable {
   name: string;
   max_members: number;
   status: TeamStatus;
+  team_handicap?: number | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -222,6 +232,30 @@ export interface MatchResultSubmissionTable {
   away_team_score: number;
   notes?: string;
   status: MatchResultStatus;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PlayerHandicapTable {
+  id: string;
+  user_id: string;
+  league_id: string;
+  handicap_index: number;
+  effective_date: Date;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface LeagueInviteTable {
+  id: string;
+  league_id: string;
+  inviter_id: string;
+  recipient_email: string;
+  recipient_user_id?: string | null;
+  role: LeagueMemberRole;
+  status: InviteStatus;
+  invite_code: string;
+  expires_at: Date;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

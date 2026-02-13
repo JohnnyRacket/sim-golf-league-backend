@@ -20,7 +20,7 @@ export class UsersService {
   async getAllUsers() {
     try {
       return await this.db.selectFrom('users')
-        .select(['id', 'username', 'email', 'created_at', 'updated_at'])
+        .select(['id', 'username', 'email', 'first_name', 'last_name', 'avatar_url', 'created_at', 'updated_at'])
         .execute();
     } catch (error) {
       throw new DatabaseError('Failed to get users', error);
@@ -33,7 +33,7 @@ export class UsersService {
   async getUserById(id: string) {
     try {
       const user = await this.db.selectFrom('users')
-        .select(['id', 'username', 'email', 'created_at', 'updated_at'])
+        .select(['id', 'username', 'email', 'first_name', 'last_name', 'avatar_url', 'created_at', 'updated_at'])
         .where('id', '=', id)
         .executeTakeFirst();
       
@@ -49,7 +49,7 @@ export class UsersService {
   async getCurrentUserProfile(userId: string): Promise<UserProfile | null> {
     try {
       const user = await this.db.selectFrom('users')
-        .select(['id', 'username', 'email', 'role', 'created_at', 'updated_at'])
+        .select(['id', 'username', 'email', 'role', 'first_name', 'last_name', 'phone', 'avatar_url', 'created_at', 'updated_at'])
         .where('id', '=', userId)
         .executeTakeFirst();
       
@@ -63,12 +63,15 @@ export class UsersService {
         .where('user_id', '=', userId)
         .executeTakeFirst();
         
-      // Manually construct the object matching UserProfile type
       const userProfileData = {
         ...user,
-        role: user.role as string, // Cast enum to string if necessary
-        created_at: user.created_at.toISOString(), // Convert Date to string
-        updated_at: user.updated_at.toISOString(), // Convert Date to string
+        role: user.role as string,
+        first_name: user.first_name ?? null,
+        last_name: user.last_name ?? null,
+        phone: user.phone ?? null,
+        avatar_url: user.avatar_url ?? null,
+        created_at: user.created_at.toISOString(),
+        updated_at: user.updated_at.toISOString(),
         is_owner: !!owner,
         owner_details: owner ? { id: owner.id, name: owner.name } : undefined
       };

@@ -7,14 +7,17 @@ import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { emailService } from '../email/email.service';
 import { TokenService } from '../../services/token.service';
+import { InvitesService } from '../invites/invites.service';
 
 export class AuthService {
   private db: Kysely<Database>;
   private tokenService: TokenService;
+  private invitesService: InvitesService;
 
   constructor(db: Kysely<Database>) {
     this.db = db;
     this.tokenService = new TokenService(db);
+    this.invitesService = new InvitesService(db);
   }
 
   /**
@@ -91,7 +94,10 @@ export class AuthService {
         throw new Error('Failed to create user');
       }
 
-      // Generate Rich JWT (new user has no entity roles yet)
+      // Auto-accept any pending invites for this email
+      await this.invitesService.acceptPendingInvitesForEmail(email, result.id);
+
+      // Generate Rich JWT (includes any roles from accepted invites)
       const { token } = await this.tokenService.generateToken(result.id);
 
       return {

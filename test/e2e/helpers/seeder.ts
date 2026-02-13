@@ -258,7 +258,8 @@ export async function seed(): Promise<SeedData> {
         status: 'active' as LeagueStatus,
         scheduling_format: 'round_robin' as SchedulingFormatType,
         playoff_format: 'none' as PlayoffFormatType,
-        playoff_size: 0
+        playoff_size: 0,
+        handicap_mode: 'none'
       })
       .execute();
     

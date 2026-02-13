@@ -1,6 +1,6 @@
 import { Kysely, Updateable } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
-import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek, SchedulingFormatType, PlayoffFormatType } from '../../types/database';
+import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek, SchedulingFormatType, PlayoffFormatType, HandicapMode } from '../../types/database';
 import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, OwnerInfo, TeamInfo, LeagueMember } from './leagues.types';
 import { NotFoundError, ValidationError, ConflictError, DatabaseError } from '../../utils/errors';
 
@@ -580,6 +580,7 @@ export class LeaguesService {
     playoff_format?: PlayoffFormatType;
     playoff_size?: number;
     prize_breakdown?: Record<string, unknown>;
+    handicap_mode?: HandicapMode;
   }): Promise<LeagueBasic> {
     try {
       const { 
@@ -600,7 +601,8 @@ export class LeaguesService {
         scheduling_format = 'round_robin',
         playoff_format = 'none',
         playoff_size = 0,
-        prize_breakdown = null
+        prize_breakdown = null,
+        handicap_mode = 'none'
       } = data;
 
       const leagueId = uuidv4();
@@ -625,7 +627,8 @@ export class LeaguesService {
           scheduling_format,
           playoff_format,
           playoff_size,
-          prize_breakdown
+          prize_breakdown,
+          handicap_mode
         })
         .returningAll()
         .executeTakeFirstOrThrow();

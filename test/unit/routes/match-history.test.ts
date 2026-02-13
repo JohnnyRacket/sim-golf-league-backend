@@ -64,8 +64,8 @@ describe('Match History Routes', () => {
     const league = await createTestLeague(location.id);
     testData.leagues.push(league);
 
-    const team1 = await createTestTeam(league.id, user2.id);
-    const team2 = await createTestTeam(league.id, user3.id);
+    const team1 = await createTestTeam(league.id);
+    const team2 = await createTestTeam(league.id);
     testData.teams.push(team1, team2);
 
     const member1 = await createTestTeamMember(team1.id, user2.id);

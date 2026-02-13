@@ -5,6 +5,9 @@ export const userBasicSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   username: Type.String(),
   email: Type.String({ format: 'email' }),
+  first_name: Type.Union([Type.String(), Type.Null()]),
+  last_name: Type.Union([Type.String(), Type.Null()]),
+  avatar_url: Type.Union([Type.String(), Type.Null()]),
   created_at: Type.String({ format: 'date-time' }),
   updated_at: Type.String({ format: 'date-time' })
 });
@@ -14,11 +17,15 @@ export const userProfileSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   username: Type.String(),
   email: Type.String({ format: 'email' }),
-  role: Type.String(), // Consider using Type.Enum if possible
+  role: Type.String(),
+  first_name: Type.Union([Type.String(), Type.Null()]),
+  last_name: Type.Union([Type.String(), Type.Null()]),
+  phone: Type.Union([Type.String(), Type.Null()]),
+  avatar_url: Type.Union([Type.String(), Type.Null()]),
   created_at: Type.String({ format: 'date-time' }),
   updated_at: Type.String({ format: 'date-time' }),
   is_owner: Type.Boolean(),
-  owner_details: Type.Optional(Type.Object({ // owner_details is optional
+  owner_details: Type.Optional(Type.Object({
     id: Type.String({ format: 'uuid' }),
     name: Type.String()
   }))
@@ -30,8 +37,11 @@ export const userListSchema = Type.Array(userBasicSchema);
 // Schema for updating user data
 export const updateUserSchema = Type.Object({
   username: Type.Optional(Type.String()),
-  email: Type.Optional(Type.String({ format: 'email' })), 
-  // Add other updatable fields as needed (e.g., password)
+  email: Type.Optional(Type.String({ format: 'email' })),
+  first_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  last_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  phone: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  avatar_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 // Schema for user teams (used in dashboard)

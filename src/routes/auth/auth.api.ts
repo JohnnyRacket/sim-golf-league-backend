@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { AuthService } from './auth.service';
+import { InvitesService } from '../invites/invites.service';
 import { authenticate } from '../../middleware/auth';
 import {
   LoginBody,
@@ -17,8 +18,8 @@ import {
 } from './auth.types';
 
 export async function authRoutes(fastify: FastifyInstance) {
-  // Initialize Auth Service
   const authService = new AuthService(db);
+  const invitesService = new InvitesService(db);
 
   // Login route
   fastify.post<{ Body: LoginBody }>('/login', {
@@ -155,6 +156,35 @@ export async function authRoutes(fastify: FastifyInstance) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Internal server error' });
     }
+  });
+
+  // Public: look up invite by code (for registration pre-fill, no auth needed)
+  fastify.get<{ Params: { code: string } }>('/invite/:code', {
+    schema: {
+      description: 'Look up an invite by code (public, for registration flow)',
+      tags: ['authentication'],
+      params: {
+        type: 'object',
+        properties: { code: { type: 'string' } },
+        required: ['code'],
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            league_name: { type: 'string' },
+            recipient_email: { type: 'string' },
+            role: { type: 'string' },
+            status: { type: 'string' },
+            expires_at: { type: 'string', format: 'date-time' },
+          },
+        },
+        404: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
+    const invite = await invitesService.getInviteByCode(request.params.code);
+    return invite;
   });
 
   // Refresh token - returns a new JWT with current entity-scoped roles
