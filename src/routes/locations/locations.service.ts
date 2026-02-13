@@ -2,6 +2,7 @@ import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
 import { Database, HandednessType } from '../../types/database';
 import { LocationBasic, LocationDetail, OwnerInfo } from './locations.types';
+import { DatabaseError, ConflictError } from '../../utils/errors';
 
 export interface BayBasic {
   id: string;
@@ -46,7 +47,7 @@ export class LocationsService {
         return result;
       });
     } catch (error) {
-      throw new Error(`Failed to get locations: ${error}`);
+      throw new DatabaseError('Failed to get locations', error);
     }
   }
 
@@ -130,7 +131,7 @@ export class LocationsService {
         league_count: leagueCount?.count || 0
       };
     } catch (error) {
-      throw new Error(`Failed to get location: ${error}`);
+      throw new DatabaseError('Failed to get location', error);
     }
   }
 
@@ -147,7 +148,7 @@ export class LocationsService {
       
       return locations as LocationBasic[];
     } catch (error) {
-      throw new Error(`Failed to get owner's locations: ${error}`);
+      throw new DatabaseError('Failed to get owner\'s locations', error);
     }
   }
 
@@ -163,7 +164,7 @@ export class LocationsService {
       
       return owner as OwnerInfo | null;
     } catch (error) {
-      throw new Error(`Failed to get owner: ${error}`);
+      throw new DatabaseError('Failed to get owner', error);
     }
   }
 
@@ -180,7 +181,7 @@ export class LocationsService {
       
       return !!result && result.user_id.toString() === userId;
     } catch (error) {
-      throw new Error(`Failed to check if user is location owner: ${error}`);
+      throw new DatabaseError('Failed to check if user is location owner', error);
     }
   }
 
@@ -209,7 +210,7 @@ export class LocationsService {
       
       return ownerId;
     } catch (error) {
-      throw new Error(`Failed to create owner: ${error}`);
+      throw new DatabaseError('Failed to create owner', error);
     }
   }
 
@@ -271,7 +272,7 @@ export class LocationsService {
       
       return location;
     } catch (error) {
-      throw new Error(`Failed to create location: ${error}`);
+      throw new DatabaseError('Failed to create location', error);
     }
   }
 
@@ -327,7 +328,7 @@ export class LocationsService {
       
       return location;
     } catch (error) {
-      throw new Error(`Failed to update location: ${error}`);
+      throw new DatabaseError('Failed to update location', error);
     }
   }
 
@@ -343,7 +344,7 @@ export class LocationsService {
         .executeTakeFirst();
       
       if ((leagueCount?.count || 0) > 0) {
-        throw new Error('Cannot delete location with associated leagues');
+        throw new ConflictError('Cannot delete location with associated leagues');
       }
       
       const result = await this.db.deleteFrom('locations')
@@ -352,7 +353,7 @@ export class LocationsService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to delete location: ${error}`);
+      throw new DatabaseError('Failed to delete location', error);
     }
   }
 
@@ -368,7 +369,7 @@ export class LocationsService {
       
       return bays as BayBasic[];
     } catch (error) {
-      throw new Error(`Failed to get bays: ${error}`);
+      throw new DatabaseError('Failed to get bays', error);
     }
   }
 
@@ -384,7 +385,7 @@ export class LocationsService {
       
       return bay as BayBasic | null;
     } catch (error) {
-      throw new Error(`Failed to get bay: ${error}`);
+      throw new DatabaseError('Failed to get bay', error);
     }
   }
 
@@ -419,7 +420,7 @@ export class LocationsService {
       
       return result as BayBasic;
     } catch (error) {
-      throw new Error(`Failed to create bay: ${error}`);
+      throw new DatabaseError('Failed to create bay', error);
     }
   }
 
@@ -444,7 +445,7 @@ export class LocationsService {
       
       return result as BayBasic | null;
     } catch (error) {
-      throw new Error(`Failed to update bay: ${error}`);
+      throw new DatabaseError('Failed to update bay', error);
     }
   }
 
@@ -459,7 +460,7 @@ export class LocationsService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to delete bay: ${error}`);
+      throw new DatabaseError('Failed to delete bay', error);
     }
   }
 } 

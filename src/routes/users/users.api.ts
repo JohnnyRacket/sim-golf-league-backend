@@ -1,8 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
+import { NotFoundError } from '../../utils/errors';
 import { UsersService } from './users.service';
-import { 
+import {
   userProfileSchema,
   updateUserSchema,
   userDashboardSchema,
@@ -28,12 +29,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      return await usersService.getAllUsers();
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    return usersService.getAllUsers();
   });
 
   // Get current user profile (self)
@@ -46,21 +42,15 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      
-      const profile = await usersService.getCurrentUserProfile(userId);
-      
-      if (!profile) {
-        reply.code(404).send({ error: 'User not found' });
-        return;
-      }
-      
-      return profile;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const userId = request.user.id.toString();
+
+    const profile = await usersService.getCurrentUserProfile(userId);
+
+    if (!profile) {
+      throw new NotFoundError('User');
     }
+
+    return profile;
   });
 
   // Get user dashboard data
@@ -72,13 +62,8 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      return await usersService.getUserDashboard(userId);
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    return usersService.getUserDashboard(userId);
   });
 
   // Get user by ID (admin/owner or self only)
@@ -95,25 +80,19 @@ export async function userRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
 
-    try {
-      // Check if user is requesting their own data or is an owner
-      if (request.user.id.toString() !== id && !(request.user.platform_role === 'admin' || Object.keys(request.user.locations || {}).length > 0)) {
-        reply.code(403).send({ error: 'Forbidden' });
-        return;
-      }
-
-      const user = await usersService.getUserById(id);
-      
-      if (!user) {
-        reply.code(404).send({ error: 'User not found' });
-        return;
-      }
-      
-      return user;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    // Check if user is requesting their own data or is an owner
+    if (request.user.id.toString() !== id && !(request.user.platform_role === 'admin' || Object.keys(request.user.locations || {}).length > 0)) {
+      reply.code(403).send({ error: 'Forbidden' });
+      return;
     }
+
+    const user = await usersService.getUserById(id);
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    return user;
   });
 
   // Update user (self only)
@@ -131,25 +110,19 @@ export async function userRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const { id } = request.params;
 
-    try {
-      // Users can only update their own data
-      if (request.user.id.toString() !== id) {
-        reply.code(403).send({ error: 'Forbidden' });
-        return;
-      }
-
-      const updateData = request.body;
-      const updated = await usersService.updateUser(id, updateData);
-
-      if (!updated) {
-        reply.code(404).send({ error: 'User not found' });
-        return;
-      }
-
-      return { message: 'User updated successfully' };
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    // Users can only update their own data
+    if (request.user.id.toString() !== id) {
+      reply.code(403).send({ error: 'Forbidden' });
+      return;
     }
+
+    const updateData = request.body;
+    const updated = await usersService.updateUser(id, updateData);
+
+    if (!updated) {
+      throw new NotFoundError('User');
+    }
+
+    return { message: 'User updated successfully' };
   });
-} 
+}

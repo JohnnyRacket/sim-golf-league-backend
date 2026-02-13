@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
-import { checkRole } from '../../middleware/auth';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 import { LocationsService, BayBasic } from './locations.service';
 import {
   CreateLocationBody,
@@ -29,7 +29,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
   fastify.get('/', {
     schema: {
       response: {
-        200: { 
+        200: {
           type: 'array',
           items: locationSchema
         },
@@ -37,13 +37,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const locations = await locationsService.getAllLocations();
-      return locations;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    return locationsService.getAllLocations();
   });
 
   // Get location by ID
@@ -57,26 +51,19 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      
-      const location = await locationsService.getLocationById(id);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      return location;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+
+    const location = await locationsService.getLocationById(id);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    return location;
   });
 
-  // Create new location (admin only)
+  // Create new location (any authenticated user - they become the owner)
   fastify.post<{ Body: CreateLocationBody }>('/', {
-    preHandler: checkRole(['admin']),
     schema: {
       body: createLocationSchema,
       response: {
@@ -91,52 +78,46 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { 
-        name, 
-        address, 
-        logo_url, 
-        banner_url, 
-        website_url, 
-        phone
-      } = request.body;
-      
-      const userId = request.user.id.toString();
-      const username = request.user.username;
-      
-      // Create or get owner ID
-      const ownerId = await locationsService.createOwnerIfNeeded(
-        userId,
-        `Owner: ${username}`
-      );
-      
-      // Look up coordinates from address
-      const coordinates = await locationsService.findCoordinatesFromAddress(address);
-      
-      // Create the location
-      const location = await locationsService.createLocation(ownerId, {
-        name,
-        address,
-        logo_url,
-        banner_url,
-        website_url,
-        phone,
-        coordinates
-      });
-      
-      reply.code(201).send({
-        message: 'Location created successfully',
-        id: location.id
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const {
+      name,
+      address,
+      logo_url,
+      banner_url,
+      website_url,
+      phone
+    } = request.body;
+
+    const userId = request.user.id.toString();
+    const username = request.user.username;
+
+    // Create or get owner ID
+    const ownerId = await locationsService.createOwnerIfNeeded(
+      userId,
+      `Owner: ${username}`
+    );
+
+    // Look up coordinates from address
+    const coordinates = await locationsService.findCoordinatesFromAddress(address);
+
+    // Create the location
+    const location = await locationsService.createLocation(ownerId, {
+      name,
+      address,
+      logo_url,
+      banner_url,
+      website_url,
+      phone,
+      coordinates
+    });
+
+    reply.code(201).send({
+      message: 'Location created successfully',
+      id: location.id
+    });
   });
 
-  // Update location
+  // Update location (owner or admin)
   fastify.put<{ Params: { id: string }; Body: UpdateLocationBody }>('/:id', {
-    preHandler: checkRole(['admin']),
     schema: {
       params: locationParamsSchema,
       body: updateLocationSchema,
@@ -148,46 +129,39 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const updateData = request.body;
-      const userId = request.user.id.toString();
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(id);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      // Check if user is authorized
-      const isOwner = await locationsService.isUserLocationOwner(id, userId);
-      
-      if (!isOwner && request.user.platform_role !== 'admin') {
-        reply.code(403).send({ error: 'You are not authorized to update this location' });
-        return;
-      }
-      
-      // If address is updated, recalculate coordinates
-      if (updateData.address) {
-        const coordinates = await locationsService.findCoordinatesFromAddress(updateData.address);
-        updateData.coordinates = coordinates;
-      }
-      
-      // Update location
-      await locationsService.updateLocation(id, updateData);
-      
-      reply.send({ message: 'Location updated successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const updateData = request.body;
+    const userId = request.user.id.toString();
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(id);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    // Check if user is authorized
+    const isOwner = await locationsService.isUserLocationOwner(id, userId);
+
+    if (!isOwner && request.user.platform_role !== 'admin') {
+      reply.code(403).send({ error: 'You are not authorized to update this location' });
+      return;
+    }
+
+    // If address is updated, recalculate coordinates
+    if (updateData.address) {
+      const coordinates = await locationsService.findCoordinatesFromAddress(updateData.address);
+      updateData.coordinates = coordinates;
+    }
+
+    // Update location
+    await locationsService.updateLocation(id, updateData);
+
+    reply.send({ message: 'Location updated successfully' });
   });
 
-  // Delete location
+  // Delete location (owner or admin)
   fastify.delete<{ Params: { id: string } }>('/:id', {
-    preHandler: checkRole(['admin']),
     schema: {
       params: locationParamsSchema,
       response: {
@@ -199,41 +173,28 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(id);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      // Check if user is authorized
-      const isOwner = await locationsService.isUserLocationOwner(id, userId);
-      
-      if (!isOwner && request.user.platform_role !== 'admin') {
-        reply.code(403).send({ error: 'You are not authorized to delete this location' });
-        return;
-      }
-      
-      try {
-        // Delete location (this will check for leagues)
-        await locationsService.deleteLocation(id);
-        reply.send({ message: 'Location deleted successfully' });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('leagues')) {
-          reply.code(400).send({ error: 'Cannot delete location with associated leagues' });
-          return;
-        }
-        throw error;
-      }
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(id);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    // Check if user is authorized
+    const isOwner = await locationsService.isUserLocationOwner(id, userId);
+
+    if (!isOwner && request.user.platform_role !== 'admin') {
+      reply.code(403).send({ error: 'You are not authorized to delete this location' });
+      return;
+    }
+
+    // Delete location (this will check for leagues)
+    // If it throws an error about leagues, it propagates to the centralized handler
+    await locationsService.deleteLocation(id);
+    reply.send({ message: 'Location deleted successfully' });
   });
 
   // Get all bays for a location
@@ -250,23 +211,16 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(id);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      const bays = await locationsService.getBaysByLocation(id);
-      return bays;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(id);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    return locationsService.getBaysByLocation(id);
   });
 
   // Get bay by ID
@@ -280,34 +234,26 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { locationId: string; bayId: string } }>, reply: FastifyReply) => {
-    try {
-      const { locationId, bayId } = request.params;
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(locationId);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      const bay = await locationsService.getBayById(bayId);
-      
-      if (!bay || bay.location_id !== locationId) {
-        reply.code(404).send({ error: 'Bay not found' });
-        return;
-      }
-      
-      return bay;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { locationId, bayId } = request.params;
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(locationId);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    const bay = await locationsService.getBayById(bayId);
+
+    if (!bay || bay.location_id !== locationId) {
+      throw new NotFoundError('Bay');
+    }
+
+    return bay;
   });
 
-  // Create a new bay for a location
+  // Create a new bay for a location (owner or admin)
   fastify.post<{ Params: { id: string }; Body: CreateBayBody }>('/:id/bays', {
-    preHandler: checkRole(['admin']),
     schema: {
       params: locationParamsSchema,
       body: createBaySchema,
@@ -325,43 +271,36 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const bayData = request.body;
-      const userId = request.user.id.toString();
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(id);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      // Check if user is authorized
-      const isOwner = await locationsService.isUserLocationOwner(id, userId);
-      
-      if (!isOwner && request.user.platform_role !== 'admin') {
-        reply.code(403).send({ error: 'You are not authorized to add bays to this location' });
-        return;
-      }
-      
-      // Create bay
-      const bay = await locationsService.createBay(id, bayData);
-      
-      reply.code(201).send({
-        message: 'Bay created successfully',
-        id: bay.id
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const bayData = request.body;
+    const userId = request.user.id.toString();
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(id);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    // Check if user is authorized
+    const isOwner = await locationsService.isUserLocationOwner(id, userId);
+
+    if (!isOwner && request.user.platform_role !== 'admin') {
+      reply.code(403).send({ error: 'You are not authorized to add bays to this location' });
+      return;
+    }
+
+    // Create bay
+    const bay = await locationsService.createBay(id, bayData);
+
+    reply.code(201).send({
+      message: 'Bay created successfully',
+      id: bay.id
+    });
   });
 
-  // Update a bay
+  // Update a bay (owner or admin)
   fastify.put<{ Params: { locationId: string; bayId: string }; Body: UpdateBayBody }>('/:locationId/bays/:bayId', {
-    preHandler: checkRole(['admin']),
     schema: {
       params: bayParamsSchema,
       body: updateBaySchema,
@@ -373,48 +312,40 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { locationId, bayId } = request.params;
-      const updateData = request.body;
-      const userId = request.user.id.toString();
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(locationId);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      // Check if bay exists and belongs to this location
-      const bay = await locationsService.getBayById(bayId);
-      
-      if (!bay || bay.location_id !== locationId) {
-        reply.code(404).send({ error: 'Bay not found' });
-        return;
-      }
-      
-      // Check if user is authorized
-      const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
-      
-      if (!isOwner && request.user.platform_role !== 'admin') {
-        reply.code(403).send({ error: 'You are not authorized to update bays for this location' });
-        return;
-      }
-      
-      // Update bay
-      await locationsService.updateBay(bayId, updateData);
-      
-      reply.send({ message: 'Bay updated successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { locationId, bayId } = request.params;
+    const updateData = request.body;
+    const userId = request.user.id.toString();
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(locationId);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    // Check if bay exists and belongs to this location
+    const bay = await locationsService.getBayById(bayId);
+
+    if (!bay || bay.location_id !== locationId) {
+      throw new NotFoundError('Bay');
+    }
+
+    // Check if user is authorized
+    const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
+
+    if (!isOwner && request.user.platform_role !== 'admin') {
+      reply.code(403).send({ error: 'You are not authorized to update bays for this location' });
+      return;
+    }
+
+    // Update bay
+    await locationsService.updateBay(bayId, updateData);
+
+    reply.send({ message: 'Bay updated successfully' });
   });
 
-  // Delete a bay
+  // Delete a bay (owner or admin)
   fastify.delete<{ Params: { locationId: string; bayId: string } }>('/:locationId/bays/:bayId', {
-    preHandler: checkRole(['admin']),
     schema: {
       params: bayParamsSchema,
       response: {
@@ -425,41 +356,34 @@ export async function locationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { locationId, bayId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Check if location exists
-      const location = await locationsService.getLocationById(locationId);
-      
-      if (!location) {
-        reply.code(404).send({ error: 'Location not found' });
-        return;
-      }
-      
-      // Check if bay exists and belongs to this location
-      const bay = await locationsService.getBayById(bayId);
-      
-      if (!bay || bay.location_id !== locationId) {
-        reply.code(404).send({ error: 'Bay not found' });
-        return;
-      }
-      
-      // Check if user is authorized
-      const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
-      
-      if (!isOwner && request.user.platform_role !== 'admin') {
-        reply.code(403).send({ error: 'You are not authorized to delete bays from this location' });
-        return;
-      }
-      
-      // Delete bay
-      await locationsService.deleteBay(bayId);
-      
-      reply.send({ message: 'Bay deleted successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { locationId, bayId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Check if location exists
+    const location = await locationsService.getLocationById(locationId);
+
+    if (!location) {
+      throw new NotFoundError('Location');
     }
+
+    // Check if bay exists and belongs to this location
+    const bay = await locationsService.getBayById(bayId);
+
+    if (!bay || bay.location_id !== locationId) {
+      throw new NotFoundError('Bay');
+    }
+
+    // Check if user is authorized
+    const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
+
+    if (!isOwner && request.user.platform_role !== 'admin') {
+      reply.code(403).send({ error: 'You are not authorized to delete bays from this location' });
+      return;
+    }
+
+    // Delete bay
+    await locationsService.deleteBay(bayId);
+
+    reply.send({ message: 'Bay deleted successfully' });
   });
-} 
+}

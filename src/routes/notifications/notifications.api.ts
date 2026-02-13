@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
+import { NotFoundError } from '../../utils/errors';
 import { NotificationsService } from './notifications.service';
 import {
   notificationSchema,
@@ -24,14 +25,8 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      const notifications = await notificationsService.getUserNotifications(userId);
-      return notifications;
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    return notificationsService.getUserNotifications(userId);
   });
 
   // Get unread notifications count
@@ -48,14 +43,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      const count = await notificationsService.getUnreadCount(userId);
-      return { count };
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    const count = await notificationsService.getUnreadCount(userId);
+    return { count };
   });
 
   // Get notification by ID
@@ -70,21 +60,16 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      
-      const notification = await notificationsService.getNotificationById(id, userId);
-      
-      if (!notification) {
-        return reply.code(404).send({ error: 'Notification not found' });
-      }
-      
-      return notification;
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+
+    const notification = await notificationsService.getNotificationById(id, userId);
+
+    if (!notification) {
+      throw new NotFoundError('Notification');
     }
+
+    return notification;
   });
 
   // Mark a notification as read/unread
@@ -100,22 +85,17 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string }; Body: UpdateNotificationBody }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      const updateData = request.body;
-      
-      const updated = await notificationsService.updateNotification(id, userId, updateData);
-      
-      if (!updated) {
-        return reply.code(404).send({ error: 'Notification not found' });
-      }
-      
-      return updated;
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+    const updateData = request.body;
+
+    const updated = await notificationsService.updateNotification(id, userId, updateData);
+
+    if (!updated) {
+      throw new NotFoundError('Notification');
     }
+
+    return updated;
   });
 
   // Mark all notifications as read
@@ -127,14 +107,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      await notificationsService.markAllAsRead(userId);
-      return { message: 'All notifications marked as read' };
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    await notificationsService.markAllAsRead(userId);
+    return { message: 'All notifications marked as read' };
   });
 
   // Delete a notification
@@ -149,20 +124,15 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      
-      const deleted = await notificationsService.deleteNotification(id, userId);
-      
-      if (!deleted) {
-        return reply.code(404).send({ error: 'Notification not found' });
-      }
-      
-      return { message: 'Notification deleted successfully' };
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+
+    const deleted = await notificationsService.deleteNotification(id, userId);
+
+    if (!deleted) {
+      throw new NotFoundError('Notification');
     }
+
+    return { message: 'Notification deleted successfully' };
   });
-} 
+}

@@ -2,12 +2,13 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { checkRole } from '../../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  teamSchema, 
+import { NotFoundError, ValidationError } from '../../utils/errors';
+import {
+  teamSchema,
   teamDetailSchema,
   teamWithMemberCountSchema,
-  createTeamSchema, 
-  updateTeamSchema, 
+  createTeamSchema,
+  updateTeamSchema,
   teamMemberBodySchema,
   joinRequestBodySchema,
   memberRoleUpdateSchema,
@@ -52,13 +53,8 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Querystring: { league_id?: string } }>, reply: FastifyReply) => {
-    try {
-      const { league_id } = request.query;
-      return await teamsService.getAllTeams(league_id);
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const { league_id } = request.query;
+    return teamsService.getAllTeams(league_id);
   });
 
   // Get teams the current user is part of
@@ -75,13 +71,8 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      return await teamsService.getUserTeams(userId);
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    return teamsService.getUserTeams(userId);
   });
 
   // Get join requests for the current user
@@ -98,13 +89,8 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const userId = request.user.id.toString();
-      return await teamsService.getUserJoinRequests(userId);
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    return teamsService.getUserJoinRequests(userId);
   });
 
   // Get team by ID
@@ -120,21 +106,15 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      
-      const team = await teamsService.getTeamById(id);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      return team;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+
+    const team = await teamsService.getTeamById(id);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    return team;
   });
 
   // Create new team (managers only)
@@ -151,33 +131,28 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { league_id, name, max_members = 6, status = 'active' } = request.body;
-      
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(league_id, request.user.id.toString());
-      
-      if (!isAuthorized) {
-        reply.code(403).send({ error: 'You are not authorized to create teams in this league' });
-        return;
-      }
-      
-      // Create team
-      const team = await teamsService.createTeam({
-        league_id,
-        name,
-        max_members,
-        status
-      });
-      
-      reply.code(201).send({ 
-        message: 'Team created successfully', 
-        id: team.id 
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { league_id, name, max_members = 6, status = 'active' } = request.body;
+
+    // Check if user is authorized to manage this league
+    const isAuthorized = await teamsService.isLeagueManager(league_id, request.user.id.toString());
+
+    if (!isAuthorized) {
+      reply.code(403).send({ error: 'You are not authorized to create teams in this league' });
+      return;
     }
+
+    // Create team
+    const team = await teamsService.createTeam({
+      league_id,
+      name,
+      max_members,
+      status
+    });
+
+    reply.code(201).send({
+      message: 'Team created successfully',
+      id: team.id
+    });
   });
 
   // Update team (managers only)
@@ -196,39 +171,32 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const updateData = request.body;
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(id);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
-      
-      if (!isAuthorized) {
-        reply.code(403).send({ error: 'You are not authorized to update this team' });
-        return;
-      }
-      
-      // Update team
-      const updatedTeam = await teamsService.updateTeam(id, updateData);
-      
-      if (!updatedTeam) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      reply.send({ message: 'Team updated successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const updateData = request.body;
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(id);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized to manage this league
+    const isAuthorized = await teamsService.isLeagueManager(team.league_id, request.user.id.toString());
+
+    if (!isAuthorized) {
+      reply.code(403).send({ error: 'You are not authorized to update this team' });
+      return;
+    }
+
+    // Update team
+    const updatedTeam = await teamsService.updateTeam(id, updateData);
+
+    if (!updatedTeam) {
+      throw new NotFoundError('Team');
+    }
+
+    reply.send({ message: 'Team updated successfully' });
   });
 
   // Add member to team (managers only)
@@ -248,51 +216,43 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId } = request.params;
-      const { user_id, role = 'member' } = request.body;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized to manage this league - do this check FIRST
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
-      
-      if (!isAuthorized) {
-        reply.code(403).send({ error: 'You are not authorized to add members to this team' });
-        return;
-      }
-      
-      // Now that authorization is confirmed, check if team has available spots
-      const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
-      
-      if (!hasAvailableSpots) {
-        reply.code(400).send({ error: 'Team is at maximum capacity' });
-        return;
-      }
-      
-      // Add member
-      const member = await teamsService.addTeamMember(teamId, user_id, role);
-      
-      if (!member) {
-        reply.code(400).send({ error: 'User is already a member of this team' });
-        return;
-      }
-      
-      reply.code(201).send({ 
-        message: 'Member added successfully',
-        member
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId } = request.params;
+    const { user_id, role = 'member' } = request.body;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized to manage this league - do this check FIRST
+    const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
+
+    if (!isAuthorized) {
+      reply.code(403).send({ error: 'You are not authorized to add members to this team' });
+      return;
+    }
+
+    // Now that authorization is confirmed, check if team has available spots
+    const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
+
+    if (!hasAvailableSpots) {
+      throw new ValidationError('Team is at maximum capacity');
+    }
+
+    // Add member
+    const member = await teamsService.addTeamMember(teamId, user_id, role);
+
+    if (!member) {
+      throw new ValidationError('User is already a member of this team');
+    }
+
+    reply.code(201).send({
+      message: 'Member added successfully',
+      member
+    });
   });
 
   // Update team member role (managers only)
@@ -311,43 +271,36 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId, memberId } = request.params;
-      const { role } = request.body;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized to manage this league
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
-      
-      if (!isAuthorized) {
-        reply.code(403).send({ error: 'You are not authorized to update this team member' });
-        return;
-      }
-      
-      // Update member
-      const updatedMember = await teamsService.updateTeamMember(memberId, role);
-      
-      if (!updatedMember) {
-        reply.code(404).send({ error: 'Team member not found' });
-        return;
-      }
-      
-      reply.send({ 
-        message: 'Member updated successfully',
-        member: updatedMember
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId, memberId } = request.params;
+    const { role } = request.body;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized to manage this league
+    const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
+
+    if (!isAuthorized) {
+      reply.code(403).send({ error: 'You are not authorized to update this team member' });
+      return;
+    }
+
+    // Update member
+    const updatedMember = await teamsService.updateTeamMember(memberId, role);
+
+    if (!updatedMember) {
+      throw new NotFoundError('Team member');
+    }
+
+    reply.send({
+      message: 'Member updated successfully',
+      member: updatedMember
+    });
   });
 
   // Remove member from team (managers only)
@@ -365,39 +318,32 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId, memberId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized to manage this league - do this check FIRST
-      const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
-      
-      if (!isAuthorized) {
-        reply.code(403).send({ error: 'You are not authorized to remove members from this team' });
-        return;
-      }
-      
-      // Remove member
-      const removed = await teamsService.removeTeamMember(memberId);
-      
-      if (!removed) {
-        reply.code(404).send({ error: 'Team member not found' });
-        return;
-      }
-      
-      reply.send({ message: 'Member removed successfully' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId, memberId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized to manage this league - do this check FIRST
+    const isAuthorized = await teamsService.isLeagueManager(team.league_id, userId);
+
+    if (!isAuthorized) {
+      reply.code(403).send({ error: 'You are not authorized to remove members from this team' });
+      return;
+    }
+
+    // Remove member
+    const removed = await teamsService.removeTeamMember(memberId);
+
+    if (!removed) {
+      throw new NotFoundError('Team member');
+    }
+
+    reply.send({ message: 'Member removed successfully' });
   });
 
   // Request to join a team
@@ -414,58 +360,49 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { team_id } = request.body;
-      const userId = request.user.id.toString();
-      
-      // Check if team exists
-      const team = await teamsService.getTeamById(team_id);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is already a member of this team
-      const isTeamMember = await teamsService.isTeamMember(team_id, userId);
-      if (isTeamMember) {
-        reply.code(400).send({ error: 'You are already a member of this team' });
-        return;
-      }
-      
-      // Check if user is a member of the league
-      const isLeagueMember = await teamsService.isLeagueMember(team.league_id, userId);
-      if (!isLeagueMember) {
-        reply.code(403).send({ error: 'You must be a member of the league to join a team' });
-        return;
-      }
-      
-      // Check if team has available spots
-      const hasAvailableSpots = await teamsService.hasAvailableSpots(team_id);
-      
-      if (!hasAvailableSpots) {
-        reply.code(400).send({ error: 'Team is at maximum capacity' });
-        return;
-      }
-      
-      // Create join request
-      const requestResult = await teamsService.createJoinRequest(team_id, userId);
-      
-      reply.code(201).send({
-        message: 'Join request submitted successfully',
-        request_id: requestResult.id
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { team_id } = request.body;
+    const userId = request.user.id.toString();
+
+    // Check if team exists
+    const team = await teamsService.getTeamById(team_id);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is already a member of this team
+    const isTeamMember = await teamsService.isTeamMember(team_id, userId);
+    if (isTeamMember) {
+      throw new ValidationError('You are already a member of this team');
+    }
+
+    // Check if user is a member of the league
+    const isLeagueMember = await teamsService.isLeagueMember(team.league_id, userId);
+    if (!isLeagueMember) {
+      reply.code(403).send({ error: 'You must be a member of the league to join a team' });
+      return;
+    }
+
+    // Check if team has available spots
+    const hasAvailableSpots = await teamsService.hasAvailableSpots(team_id);
+
+    if (!hasAvailableSpots) {
+      throw new ValidationError('Team is at maximum capacity');
+    }
+
+    // Create join request
+    const requestResult = await teamsService.createJoinRequest(team_id, userId);
+
+    reply.code(201).send({
+      message: 'Join request submitted successfully',
+      request_id: requestResult.id
+    });
   });
 
-  // Get join requests for a team (team members or league managers)
+  // Get join requests for a team (captains or league managers)
   fastify.get<{ Params: { id: string } }>('/:id/join-requests', {
-    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Get join requests for a team (team members or league managers)',
+      description: 'Get join requests for a team (captains or league managers)',
       tags: ['teams'],
       params: teamIdParamSchema,
       response: {
@@ -479,44 +416,35 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized as either:
-      // 1. A league manager
-      // 2. A member of the team
-      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
-      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
-      
-      if (!isLeagueManager && !isTeamMember) {
-        reply.code(403).send({ error: 'You are not authorized to view join requests for this team' });
-        return;
-      }
-      
-      // Get join requests
-      const requests = await teamsService.getTeamJoinRequests(teamId);
-      
-      return requests;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized as either:
+    // 1. A league manager
+    // 2. A captain of the team
+    const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+    const isCaptain = await teamsService.isTeamCaptain(teamId, userId);
+
+    if (!isLeagueManager && !isCaptain) {
+      reply.code(403).send({ error: 'You are not authorized to view join requests for this team' });
+      return;
+    }
+
+    // Get join requests
+    return teamsService.getTeamJoinRequests(teamId);
   });
 
-  // Approve a join request (team members or league managers)
+  // Approve a join request (captains or league managers)
   fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/approve', {
-    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Approve a join request (team members or league managers)',
+      description: 'Approve a join request (captains or league managers)',
       tags: ['teams'],
       params: joinRequestIdParamSchema,
       response: {
@@ -528,60 +456,51 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId, requestId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized as either:
-      // 1. A league manager
-      // 2. A member of the team
-      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
-      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
-      
-      if (!isLeagueManager && !isTeamMember) {
-        reply.code(403).send({ error: 'You are not authorized to approve join requests for this team' });
-        return;
-      }
-      
-      // Only after authorization, check if team has available spots
-      const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
-      
-      if (!hasAvailableSpots) {
-        reply.code(400).send({ error: 'Team is at maximum capacity' });
-        return;
-      }
-      
-      // Approve request
-      const member = await teamsService.approveJoinRequest(requestId);
-      
-      if (!member) {
-        reply.code(404).send({ error: 'Join request not found or already processed' });
-        return;
-      }
-      
-      reply.send({
-        message: 'Join request approved',
-        member
-      });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId, requestId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized as either:
+    // 1. A league manager
+    // 2. A captain of the team
+    const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+    const isCaptain = await teamsService.isTeamCaptain(teamId, userId);
+
+    if (!isLeagueManager && !isCaptain) {
+      reply.code(403).send({ error: 'You are not authorized to approve join requests for this team' });
+      return;
+    }
+
+    // Only after authorization, check if team has available spots
+    const hasAvailableSpots = await teamsService.hasAvailableSpots(teamId);
+
+    if (!hasAvailableSpots) {
+      throw new ValidationError('Team is at maximum capacity');
+    }
+
+    // Approve request
+    const member = await teamsService.approveJoinRequest(requestId);
+
+    if (!member) {
+      throw new NotFoundError('Join request not found or already processed');
+    }
+
+    reply.send({
+      message: 'Join request approved',
+      member
+    });
   });
 
-  // Reject a join request (team members or league managers)
+  // Reject a join request (captains or league managers)
   fastify.post<{ Params: { id: string; requestId: string } }>('/:id/join-requests/:requestId/reject', {
-    preHandler: checkRole(['manager']), // Keep this for basic role check
     schema: {
-      description: 'Reject a join request (team members or league managers)',
+      description: 'Reject a join request (captains or league managers)',
       tags: ['teams'],
       params: joinRequestIdParamSchema,
       response: {
@@ -592,42 +511,35 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id: teamId, requestId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Get team to check league
-      const team = await teamsService.getTeamById(teamId);
-      
-      if (!team) {
-        reply.code(404).send({ error: 'Team not found' });
-        return;
-      }
-      
-      // Check if user is authorized as either:
-      // 1. A league manager
-      // 2. A member of the team
-      const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
-      const isTeamMember = await teamsService.isTeamMember(teamId, userId);
-      
-      if (!isLeagueManager && !isTeamMember) {
-        reply.code(403).send({ error: 'You are not authorized to reject join requests for this team' });
-        return;
-      }
-      
-      // Reject request
-      const rejected = await teamsService.rejectJoinRequest(requestId);
-      
-      if (!rejected) {
-        reply.code(404).send({ error: 'Join request not found or already processed' });
-        return;
-      }
-      
-      reply.send({ message: 'Join request rejected' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id: teamId, requestId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Get team to check league
+    const team = await teamsService.getTeamById(teamId);
+
+    if (!team) {
+      throw new NotFoundError('Team');
     }
+
+    // Check if user is authorized as either:
+    // 1. A league manager
+    // 2. A captain of the team
+    const isLeagueManager = await teamsService.isLeagueManager(team.league_id, userId);
+    const isCaptain = await teamsService.isTeamCaptain(teamId, userId);
+
+    if (!isLeagueManager && !isCaptain) {
+      reply.code(403).send({ error: 'You are not authorized to reject join requests for this team' });
+      return;
+    }
+
+    // Reject request
+    const rejected = await teamsService.rejectJoinRequest(requestId);
+
+    if (!rejected) {
+      throw new NotFoundError('Join request not found or already processed');
+    }
+
+    reply.send({ message: 'Join request rejected' });
   });
 
   // Cancel own join request
@@ -650,22 +562,16 @@ export async function teamRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { requestId } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Cancel request
-      const cancelled = await teamsService.cancelJoinRequest(requestId, userId);
-      
-      if (!cancelled) {
-        reply.code(404).send({ error: 'Join request not found or already processed' });
-        return;
-      }
-      
-      reply.send({ message: 'Join request cancelled' });
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { requestId } = request.params;
+    const userId = request.user.id.toString();
+
+    // Cancel request
+    const cancelled = await teamsService.cancelJoinRequest(requestId, userId);
+
+    if (!cancelled) {
+      throw new NotFoundError('Join request not found or already processed');
     }
+
+    reply.send({ message: 'Join request cancelled' });
   });
-} 
+}

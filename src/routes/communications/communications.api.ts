@@ -1,12 +1,13 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { 
-  createCommunication, 
-  getCommunications, 
-  getCommunicationById, 
-  deleteCommunication, 
+import { checkRole } from '../../middleware/auth';
+import {
+  createCommunication,
+  getCommunications,
+  getCommunicationById,
+  deleteCommunication,
   getCommunicationsForLeague
 } from './communications.service';
-import { 
+import {
   communicationSchema,
   communicationListSchema,
   createCommunicationSchema,
@@ -26,14 +27,8 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         500: errorResponseSchema
       }
     }
-  }, async (request, reply: FastifyReply) => {
-    try {
-      const communications = await getCommunications();
-      return communications;
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+  }, async () => {
+    return getCommunications();
   });
 
   // Get communication by ID
@@ -46,18 +41,9 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         500: errorResponseSchema
       }
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      const communication = await getCommunicationById(id);
-      return communication;
-    } catch (error: any) {
-      if (error.message && error.message.includes('not found')) {
-        return reply.code(404).send({ error: error.message });
-      }
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+  }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = request.params;
+    return getCommunicationById(id);
   });
 
   // Get all communications for a specific league
@@ -69,19 +55,14 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         500: errorResponseSchema
       }
     }
-  }, async (request: FastifyRequest<{ Params: { leagueId: string } }>, reply: FastifyReply) => {
-    try {
-      const { leagueId } = request.params;
-      const communications = await getCommunicationsForLeague(leagueId);
-      return communications;
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+  }, async (request: FastifyRequest<{ Params: { leagueId: string } }>) => {
+    const { leagueId } = request.params;
+    return getCommunicationsForLeague(leagueId);
   });
 
-  // Create a new communication
-  fastify.post('/', {
+  // Create a new communication (managers/admins only)
+  fastify.post<{ Body: CreateCommunicationBody }>('/', {
+    preHandler: checkRole(['manager']),
     schema: {
       body: createCommunicationSchema,
       response: {
@@ -89,40 +70,33 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         500: errorResponseSchema
       }
     }
-  }, async (request: FastifyRequest<{ Body: CreateCommunicationBody }>, reply: FastifyReply) => {
-    try {
-      const { 
-        recipientType, 
-        recipientId, 
-        type, 
-        title, 
-        message, 
-        expirationDate, 
-        senderId 
-      } = request.body;
+  }, async (request) => {
+    const {
+      recipientType,
+      recipientId,
+      type,
+      title,
+      message,
+      expirationDate,
+      senderId
+    } = request.body;
 
-      // Only use current user's ID if sender is not specified explicitly as null
-      const actualSenderId = senderId === null ? null : (senderId || request.user.id.toString());
-      
-      const newCommunication = await createCommunication({
-        recipientType: recipientType as 'league' | 'team' | 'user',
-        recipientId,
-        type: type as 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule',
-        title,
-        message,
-        expirationDate: expirationDate ? new Date(expirationDate) : undefined,
-        senderId: actualSenderId
-      });
-      
-      return newCommunication;
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+    const actualSenderId = senderId === null ? null : (senderId || request.user.id.toString());
+
+    return createCommunication({
+      recipientType: recipientType as 'league' | 'team' | 'user',
+      recipientId,
+      type: type as 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule',
+      title,
+      message,
+      expirationDate: expirationDate ? new Date(expirationDate) : undefined,
+      senderId: actualSenderId
+    });
   });
 
-  // Delete communication
-  fastify.delete('/:id', {
+  // Delete communication (managers/admins only)
+  fastify.delete<{ Params: { id: string } }>('/:id', {
+    preHandler: checkRole(['manager']),
     schema: {
       params: communicationIdParamsSchema,
       response: {
@@ -131,17 +105,8 @@ export async function communicationRoutes(fastify: FastifyInstance) {
         500: errorResponseSchema
       }
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    try {
-      const { id } = request.params;
-      const result = await deleteCommunication(id);
-      return result;
-    } catch (error: any) {
-      if (error.message && error.message.includes('not found')) {
-        return reply.code(404).send({ error: error.message });
-      }
-      request.log.error(error);
-      return reply.code(500).send({ error: 'Internal server error' });
-    }
+  }, async (request) => {
+    const { id } = request.params;
+    return deleteCommunication(id);
   });
-} 
+}

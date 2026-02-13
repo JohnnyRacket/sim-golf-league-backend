@@ -2,6 +2,7 @@ import { Kysely } from 'kysely';
 import { Database, NotificationType } from '../../types/database';
 import { CreateNotificationBody, UpdateNotificationBody } from './notifications.types';
 import { v4 as uuidv4 } from 'uuid';
+import { DatabaseError } from '../../utils/errors';
 
 export class NotificationsService {
   private db: Kysely<Database>;
@@ -21,7 +22,7 @@ export class NotificationsService {
         .orderBy('created_at', 'desc')
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get notifications: ${error}`);
+      throw new DatabaseError('Failed to get notifications', error);
     }
   }
 
@@ -38,7 +39,7 @@ export class NotificationsService {
       
       return result ? Number(result.count) : 0;
     } catch (error) {
-      throw new Error(`Failed to get unread count: ${error}`);
+      throw new DatabaseError('Failed to get unread count', error);
     }
   }
 
@@ -53,7 +54,7 @@ export class NotificationsService {
         .where('user_id', '=', userId) // Security: ensure user owns the notification
         .executeTakeFirst();
     } catch (error) {
-      throw new Error(`Failed to get notification: ${error}`);
+      throw new DatabaseError('Failed to get notification', error);
     }
   }
 
@@ -84,7 +85,7 @@ export class NotificationsService {
       
       return result;
     } catch (error) {
-      throw new Error(`Failed to create notification: ${error}`);
+      throw new DatabaseError('Failed to create notification', error);
     }
   }
 
@@ -102,7 +103,7 @@ export class NotificationsService {
       
       return result;
     } catch (error) {
-      throw new Error(`Failed to update notification: ${error}`);
+      throw new DatabaseError('Failed to update notification', error);
     }
   }
 
@@ -119,7 +120,7 @@ export class NotificationsService {
       
       return true;
     } catch (error) {
-      throw new Error(`Failed to mark all notifications as read: ${error}`);
+      throw new DatabaseError('Failed to mark all notifications as read', error);
     }
   }
 
@@ -135,7 +136,7 @@ export class NotificationsService {
       
       return !!result && result.numDeletedRows > BigInt(0);
     } catch (error) {
-      throw new Error(`Failed to delete notification: ${error}`);
+      throw new DatabaseError('Failed to delete notification', error);
     }
   }
 } 

@@ -2,6 +2,7 @@ import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
 import { Database, TeamMemberRole, TeamStatus } from '../../types/database';
 import { TeamBasic, TeamDetail, TeamMember, TeamWithMemberCount, JoinRequest } from './teams.types';
+import { NotFoundError, ValidationError, ConflictError, DatabaseError, AuthorizationError } from '../../utils/errors';
 
 export class TeamsService {
   private db: Kysely<Database>;
@@ -24,7 +25,7 @@ export class TeamsService {
       
       return await query.execute();
     } catch (error) {
-      throw new Error(`Failed to get teams: ${error}`);
+      throw new DatabaseError('Failed to get teams', error);
     }
   }
 
@@ -67,7 +68,7 @@ export class TeamsService {
       
       return teamsWithMemberCount as TeamWithMemberCount[];
     } catch (error) {
-      throw new Error(`Failed to get user teams: ${error}`);
+      throw new DatabaseError('Failed to get user teams', error);
     }
   }
 
@@ -104,7 +105,7 @@ export class TeamsService {
         members
       } as TeamDetail;
     } catch (error) {
-      throw new Error(`Failed to get team: ${error}`);
+      throw new DatabaseError('Failed to get team', error);
     }
   }
 
@@ -126,7 +127,7 @@ export class TeamsService {
       
       return league.user_id.toString() === userId;
     } catch (error) {
-      throw new Error(`Failed to check if user is league manager: ${error}`);
+      throw new DatabaseError('Failed to check if user is league manager', error);
     }
   }
 
@@ -144,7 +145,26 @@ export class TeamsService {
       
       return !!member;
     } catch (error) {
-      throw new Error(`Failed to check if user is team member: ${error}`);
+      throw new DatabaseError('Failed to check if user is team member', error);
+    }
+  }
+
+  /**
+   * Checks if a user is a captain of a team
+   */
+  async isTeamCaptain(teamId: string, userId: string): Promise<boolean> {
+    try {
+      const member = await this.db.selectFrom('team_members')
+        .selectAll()
+        .where('team_id', '=', teamId)
+        .where('user_id', '=', userId)
+        .where('role', '=', 'captain')
+        .where('status', '=', 'active')
+        .executeTakeFirst();
+
+      return !!member;
+    } catch (error) {
+      throw new DatabaseError('Failed to check if user is team captain', error);
     }
   }
 
@@ -175,7 +195,7 @@ export class TeamsService {
       
       return !!teamMember;
     } catch (error) {
-      throw new Error(`Failed to check if user is league member: ${error}`);
+      throw new DatabaseError('Failed to check if user is league member', error);
     }
   }
 
@@ -206,7 +226,7 @@ export class TeamsService {
       
       return result as TeamBasic;
     } catch (error) {
-      throw new Error(`Failed to create team: ${error}`);
+      throw new DatabaseError('Failed to create team', error);
     }
   }
 
@@ -227,7 +247,7 @@ export class TeamsService {
       
       return result as TeamBasic | null;
     } catch (error) {
-      throw new Error(`Failed to update team: ${error}`);
+      throw new DatabaseError('Failed to update team', error);
     }
   }
 
@@ -293,7 +313,7 @@ export class TeamsService {
         username: user?.username || 'Unknown'
       } as TeamMember;
     } catch (error) {
-      throw new Error(`Failed to add team member: ${error}`);
+      throw new DatabaseError('Failed to add team member', error);
     }
   }
 
@@ -323,7 +343,7 @@ export class TeamsService {
         username: user?.username || 'Unknown'
       } as TeamMember;
     } catch (error) {
-      throw new Error(`Failed to update team member: ${error}`);
+      throw new DatabaseError('Failed to update team member', error);
     }
   }
 
@@ -339,7 +359,7 @@ export class TeamsService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to remove team member: ${error}`);
+      throw new DatabaseError('Failed to remove team member', error);
     }
   }
 
@@ -365,7 +385,7 @@ export class TeamsService {
       
       return (memberCount?.count || 0) < team.max_members;
     } catch (error) {
-      throw new Error(`Failed to check if team has available spots: ${error}`);
+      throw new DatabaseError('Failed to check if team has available spots', error);
     }
   }
 
@@ -387,7 +407,7 @@ export class TeamsService {
       
       return { id: requestId };
     } catch (error) {
-      throw new Error(`Failed to create join request: ${error}`);
+      throw new DatabaseError('Failed to create join request', error);
     }
   }
 
@@ -411,7 +431,7 @@ export class TeamsService {
         .orderBy('team_join_requests.created_at', 'desc')
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get team join requests: ${error}`);
+      throw new DatabaseError('Failed to get team join requests', error);
     }
   }
 
@@ -439,7 +459,7 @@ export class TeamsService {
       // Add user to team
       return await this.addTeamMember(request.team_id, request.user_id);
     } catch (error) {
-      throw new Error(`Failed to approve join request: ${error}`);
+      throw new DatabaseError('Failed to approve join request', error);
     }
   }
 
@@ -456,7 +476,7 @@ export class TeamsService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to reject join request: ${error}`);
+      throw new DatabaseError('Failed to reject join request', error);
     }
   }
 
@@ -481,7 +501,7 @@ export class TeamsService {
         .orderBy('team_join_requests.created_at', 'desc')
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get user join requests: ${error}`);
+      throw new DatabaseError('Failed to get user join requests', error);
     }
   }
 
@@ -510,7 +530,7 @@ export class TeamsService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to cancel join request: ${error}`);
+      throw new DatabaseError('Failed to cancel join request', error);
     }
   }
 } 

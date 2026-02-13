@@ -7,6 +7,7 @@ import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from './routes';
 import { config } from './utils/config';
+import { ApplicationError } from './utils/errors';
 
 export async function createServer() {
   const server = fastify({
@@ -67,6 +68,23 @@ export async function createServer() {
   // Health check endpoint (no auth required)
   server.get('/health', async () => {
     return { status: 'ok' };
+  });
+
+  // Centralized error handler
+  server.setErrorHandler((error, request, reply) => {
+    if (error instanceof ApplicationError) {
+      request.log.warn(error);
+      return reply.status(error.statusCode).send({ error: error.message });
+    }
+
+    // Fastify validation errors (schema validation)
+    if (error.validation) {
+      return reply.status(400).send({ error: error.message });
+    }
+
+    // Unexpected errors
+    request.log.error(error);
+    return reply.status(500).send({ error: 'Internal server error' });
   });
 
   // Register all routes

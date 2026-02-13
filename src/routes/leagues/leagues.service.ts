@@ -1,7 +1,8 @@
-import { Kysely } from 'kysely';
+import { Kysely, Updateable } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
 import { Database, LeagueStatus, LeagueMemberRole, LeagueRequestStatus, PaymentType, DayOfWeek, SchedulingFormatType, PlayoffFormatType } from '../../types/database';
 import { LeagueBasic, LeagueDetail, LeagueWithLocation, LocationInfo, OwnerInfo, TeamInfo, LeagueMember } from './leagues.types';
+import { NotFoundError, ValidationError, ConflictError, DatabaseError } from '../../utils/errors';
 
 export class LeaguesService {
   private db: Kysely<Database>;
@@ -34,14 +35,16 @@ export class LeaguesService {
           'owners.name as owner_name'
         ]);
       
+      query = query.where('leagues.status', '!=', 'inactive');
+
       if (locationId) {
         query = query.where('leagues.location_id', '=', locationId);
       }
-      
+
       const leagues = await query.execute();
       return leagues as LeagueWithLocation[];
     } catch (error) {
-      throw new Error(`Failed to get leagues: ${error}`);
+      throw new DatabaseError('Failed to get leagues', error);
     }
   }
 
@@ -66,11 +69,12 @@ export class LeaguesService {
         ])
         .where('team_members.user_id', '=', userId)
         .where('team_members.status', '=', 'active')
+        .where('leagues.status', '!=', 'inactive')
         .execute();
-      
+
       return leagues;
     } catch (error) {
-      throw new Error(`Failed to get user's leagues: ${error}`);
+      throw new DatabaseError("Failed to get user's leagues", error);
     }
   }
 
@@ -99,8 +103,9 @@ export class LeaguesService {
           'owners.name as owner_name'
         ])
         .where('owners.user_id', '=', userId)
+        .where('leagues.status', '!=', 'inactive')
         .execute();
-      
+
       // Now get leagues where the user has a manager role
       const managerRoleLeagues = await this.db.selectFrom('league_members')
         .innerJoin('leagues', 'leagues.id', 'league_members.league_id')
@@ -123,8 +128,9 @@ export class LeaguesService {
         ])
         .where('league_members.user_id', '=', userId)
         .where('league_members.role', '=', 'manager')
+        .where('leagues.status', '!=', 'inactive')
         .execute();
-      
+
       // Combine and deduplicate results
       const allLeagues = [...ownerLeagues, ...managerRoleLeagues];
       const uniqueLeagues = Array.from(
@@ -133,7 +139,7 @@ export class LeaguesService {
       
       return uniqueLeagues as LeagueWithLocation[];
     } catch (error) {
-      throw new Error(`Failed to get manager's leagues: ${error}`);
+      throw new DatabaseError("Failed to get manager's leagues", error);
     }
   }
 
@@ -204,7 +210,7 @@ export class LeaguesService {
         members
       };
     } catch (error) {
-      throw new Error(`Failed to get league: ${error}`);
+      throw new DatabaseError('Failed to get league', error);
     }
   }
 
@@ -221,7 +227,7 @@ export class LeaguesService {
       
       return !!result && result.user_id.toString() === userId;
     } catch (error) {
-      throw new Error(`Failed to check if user is location owner: ${error}`);
+      throw new DatabaseError('Failed to check if user is location owner', error);
     }
   }
 
@@ -245,7 +251,7 @@ export class LeaguesService {
       // Then check if the user has a manager role in the league
       return await this.isUserLeagueMember(leagueId, userId, 'manager');
     } catch (error) {
-      throw new Error(`Failed to check if user is league manager: ${error}`);
+      throw new DatabaseError('Failed to check if user is league manager', error);
     }
   }
 
@@ -266,7 +272,7 @@ export class LeaguesService {
       const member = await query.executeTakeFirst();
       return !!member;
     } catch (error) {
-      throw new Error(`Failed to check if user is league member: ${error}`);
+      throw new DatabaseError('Failed to check if user is league member', error);
     }
   }
 
@@ -289,7 +295,7 @@ export class LeaguesService {
       
       return members as LeagueMember[];
     } catch (error) {
-      throw new Error(`Failed to get league members: ${error}`);
+      throw new DatabaseError('Failed to get league members', error);
     }
   }
 
@@ -344,7 +350,7 @@ export class LeaguesService {
         username: user?.username || 'Unknown'
       } as LeagueMember;
     } catch (error) {
-      throw new Error(`Failed to add league member: ${error}`);
+      throw new DatabaseError('Failed to add league member', error);
     }
   }
 
@@ -374,7 +380,7 @@ export class LeaguesService {
         username: user?.username || 'Unknown'
       } as LeagueMember;
     } catch (error) {
-      throw new Error(`Failed to update league member role: ${error}`);
+      throw new DatabaseError('Failed to update league member role', error);
     }
   }
 
@@ -389,7 +395,7 @@ export class LeaguesService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to remove league member: ${error}`);
+      throw new DatabaseError('Failed to remove league member', error);
     }
   }
 
@@ -412,7 +418,7 @@ export class LeaguesService {
         .executeTakeFirst();
       
       if (existingMember) {
-        throw new Error('User already has the requested role in this league');
+        throw new ConflictError('User already has the requested role in this league');
       }
       
       // Check for existing pending requests
@@ -425,7 +431,7 @@ export class LeaguesService {
         .executeTakeFirst();
       
       if (existingRequest) {
-        throw new Error('A pending request already exists');
+        throw new ConflictError('A pending request already exists');
       }
       
       // Create request
@@ -445,7 +451,8 @@ export class LeaguesService {
       
       return result;
     } catch (error) {
-      throw new Error(`Failed to create league membership request: ${error}`);
+      if (error instanceof ConflictError) throw error;
+      throw new DatabaseError('Failed to create league membership request', error);
     }
   }
 
@@ -470,7 +477,7 @@ export class LeaguesService {
       
       return requests;
     } catch (error) {
-      throw new Error(`Failed to get league membership requests: ${error}`);
+      throw new DatabaseError('Failed to get league membership requests', error);
     }
   }
 
@@ -494,7 +501,7 @@ export class LeaguesService {
       
       return requests;
     } catch (error) {
-      throw new Error(`Failed to get user's membership requests: ${error}`);
+      throw new DatabaseError("Failed to get user's membership requests", error);
     }
   }
 
@@ -511,7 +518,7 @@ export class LeaguesService {
         .executeTakeFirst();
       
       if (!request) {
-        throw new Error('Request not found or already processed');
+        throw new NotFoundError('Request');
       }
       
       // Update request status
@@ -529,7 +536,8 @@ export class LeaguesService {
       
       return true;
     } catch (error) {
-      throw new Error(`Failed to approve league membership request: ${error}`);
+      if (error instanceof NotFoundError) throw error;
+      throw new DatabaseError('Failed to approve league membership request', error);
     }
   }
 
@@ -546,7 +554,7 @@ export class LeaguesService {
       
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to reject league membership request: ${error}`);
+      throw new DatabaseError('Failed to reject league membership request', error);
     }
   }
 
@@ -624,7 +632,7 @@ export class LeaguesService {
       
       return result as LeagueBasic;
     } catch (error) {
-      throw new Error(`Failed to create league: ${error}`);
+      throw new DatabaseError('Failed to create league', error);
     }
   }
 
@@ -661,14 +669,14 @@ export class LeaguesService {
       }
 
       const result = await this.db.updateTable('leagues')
-        .set(updateData as any)
+        .set(updateData as Updateable<Database['leagues']>)
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirst();
       
       return result as LeagueBasic | null;
     } catch (error) {
-      throw new Error(`Failed to update league: ${error}`);
+      throw new DatabaseError('Failed to update league', error);
     }
   }
 
@@ -677,14 +685,14 @@ export class LeaguesService {
    */
   async deleteLeague(id: string): Promise<boolean> {
     try {
-      // For now, we'll hard delete the league
-      const result = await this.db.deleteFrom('leagues')
+      const result = await this.db.updateTable('leagues')
+        .set({ status: 'inactive' })
         .where('id', '=', id)
         .execute();
-      
+
       return !!result;
     } catch (error) {
-      throw new Error(`Failed to delete league: ${error}`);
+      throw new DatabaseError('Failed to delete league', error);
     }
   }
 
@@ -693,75 +701,33 @@ export class LeaguesService {
    */
   async getLeagueStandings(leagueId: string): Promise<any[]> {
     try {
-      // First, get all teams in the league
-      const teams = await this.db.selectFrom('teams')
-        .select(['id', 'name'])
-        .where('league_id', '=', leagueId)
-        .where('status', '=', 'active')
+      const standings = await this.db.selectFrom('stats')
+        .innerJoin('teams', 'teams.id', 'stats.team_id')
+        .select([
+          'stats.team_id',
+          'teams.name as team_name',
+          'stats.matches_played',
+          'stats.matches_won as wins',
+          'stats.matches_lost as losses',
+          'stats.matches_drawn as draws',
+        ])
+        .where('stats.league_id', '=', leagueId)
+        .where('teams.status', '=', 'active')
         .execute();
-      
-      // Get match results for each team
-      const teamResults = await Promise.all(teams.map(async (team) => {
-        // Get home matches
-        const homeMatches = await this.db.selectFrom('matches')
-          .select(['home_team_score', 'away_team_score', 'status'])
-          .where('home_team_id', '=', team.id)
-          .where('league_id', '=', leagueId)
-          .where('status', '=', 'completed')
-          .execute();
-        
-        // Get away matches
-        const awayMatches = await this.db.selectFrom('matches')
-          .select(['home_team_score', 'away_team_score', 'status'])
-          .where('away_team_id', '=', team.id)
-          .where('league_id', '=', leagueId)
-          .where('status', '=', 'completed')
-          .execute();
-        
-        // Calculate wins, losses, and total matches
-        let wins = 0;
-        let losses = 0;
-        let draws = 0;
-        
-        // Process home matches
-        homeMatches.forEach(match => {
-          if (match.home_team_score > match.away_team_score) {
-            wins++;
-          } else if (match.home_team_score < match.away_team_score) {
-            losses++;
-          } else {
-            draws++;
-          }
-        });
-        
-        // Process away matches
-        awayMatches.forEach(match => {
-          if (match.away_team_score > match.home_team_score) {
-            wins++;
-          } else if (match.away_team_score < match.home_team_score) {
-            losses++;
-          } else {
-            draws++;
-          }
-        });
-        
-        const totalMatches = homeMatches.length + awayMatches.length;
-        
-        return {
-          team_id: team.id,
-          team_name: team.name,
-          matches_played: totalMatches,
-          wins,
-          losses,
-          draws,
-          points: wins * 3 + draws // 3 points for win, 1 for draw
-        };
-      }));
-      
-      // Sort by points (descending)
-      return teamResults.sort((a, b) => b.points - a.points);
+
+      return standings
+        .map(row => ({
+          team_id: row.team_id,
+          team_name: row.team_name,
+          matches_played: row.matches_played,
+          wins: row.wins,
+          losses: row.losses,
+          draws: row.draws,
+          points: row.wins * 3 + row.draws
+        }))
+        .sort((a, b) => b.points - a.points);
     } catch (error) {
-      throw new Error(`Failed to get league standings: ${error}`);
+      throw new DatabaseError('Failed to get league standings', error);
     }
   }
 
@@ -792,7 +758,7 @@ export class LeaguesService {
       
       return teamsWithCount as TeamInfo[];
     } catch (error) {
-      throw new Error(`Failed to get league teams: ${error}`);
+      throw new DatabaseError('Failed to get league teams', error);
     }
   }
 
@@ -812,7 +778,7 @@ export class LeaguesService {
         .executeTakeFirst();
       
       if (!league) {
-        throw new Error('League not found');
+        throw new NotFoundError('League');
       }
       
       // Setup match dates based on league parameters
@@ -842,16 +808,16 @@ export class LeaguesService {
           break;
         case 'groups':
           // Not implemented yet
-          throw new Error('Groups format not implemented yet');
+          throw new ValidationError('Groups format not implemented yet');
         case 'swiss':
           // Not implemented yet
-          throw new Error('Swiss format not implemented yet');
+          throw new ValidationError('Swiss format not implemented yet');
         case 'ladder':
           // Not implemented yet
-          throw new Error('Ladder format not implemented yet');
+          throw new ValidationError('Ladder format not implemented yet');
         case 'custom':
           // Not implemented yet
-          throw new Error('Custom format not implemented yet');
+          throw new ValidationError('Custom format not implemented yet');
         default:
           matches.push(...this.generateRoundRobinMatches(leagueId, teams, matchDates, startTime));
       }
@@ -865,7 +831,8 @@ export class LeaguesService {
       
       return matches.length;
     } catch (error) {
-      throw new Error(`Failed to generate schedule: ${error}`);
+      if (error instanceof NotFoundError || error instanceof ValidationError) throw error;
+      throw new DatabaseError('Failed to generate schedule', error);
     }
   }
   

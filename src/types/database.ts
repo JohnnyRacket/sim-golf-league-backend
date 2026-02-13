@@ -3,7 +3,7 @@ import { Generated } from 'kysely';
 export type UserRole = 'user' | 'admin';
 export type TeamMemberRole = 'captain' | 'member';
 export type TeamStatus = 'active' | 'inactive';
-export type LeagueStatus = 'pending' | 'active' | 'completed';
+export type LeagueStatus = 'pending' | 'active' | 'completed' | 'inactive';
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';

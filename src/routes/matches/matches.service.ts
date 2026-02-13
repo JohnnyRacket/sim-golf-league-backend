@@ -1,15 +1,16 @@
-import { Kysely, Transaction } from 'kysely';
+import { Kysely, Transaction, Insertable, Updateable, Selectable } from 'kysely';
 import { Database, MatchTable, GameFormatType, MatchFormatType, ScoringFormatType } from "../../types/database";
 import { MatchStatus } from "../../types/enums";
-import { 
-  EnhancedMatch, 
-  TeamInfo, 
-  LeagueInfo, 
-  UserMatchSummary, 
-  ManagerInfo 
+import {
+  EnhancedMatch,
+  TeamInfo,
+  LeagueInfo,
+  UserMatchSummary,
+  ManagerInfo
 } from "./matches.types";
 import { v4 as uuidv4 } from 'uuid';
 import { createCommunication } from '../communications/communications.service';
+import { NotFoundError, ValidationError, DatabaseError, AuthorizationError } from '../../utils/errors';
 
 export class MatchesService {
   private db: Kysely<Database>;
@@ -21,34 +22,29 @@ export class MatchesService {
   /**
    * Creates a new match in the database
    */
-  async createMatch(matchData: Omit<MatchTable, "id" | "created_at" | "updated_at">): Promise<MatchTable> {
+  async createMatch(matchData: Insertable<MatchTable>): Promise<Selectable<MatchTable>> {
     try {
       const result = await this.db.insertInto('matches')
-        .values({
-          ...matchData,
-          created_at: undefined,
-          updated_at: undefined
-        } as any)
+        .values(matchData)
         .returningAll()
         .executeTakeFirstOrThrow();
-      return result as any as MatchTable;
+      return result;
     } catch (error) {
-      throw new Error(`Failed to create match: ${error}`);
+      throw new DatabaseError('Failed to create match', error);
     }
   }
 
   /**
    * Gets a match by ID
    */
-  async getMatchById(id: string): Promise<MatchTable | null> {
+  async getMatchById(id: string): Promise<Selectable<MatchTable> | undefined> {
     try {
-      const match = await this.db.selectFrom('matches')
+      return await this.db.selectFrom('matches')
         .selectAll()
         .where('id', '=', id)
         .executeTakeFirst();
-      return match as any as MatchTable | null;
     } catch (error) {
-      throw new Error(`Failed to get match: ${error}`);
+      throw new DatabaseError('Failed to get match', error);
     }
   }
 
@@ -120,7 +116,7 @@ export class MatchesService {
         } : undefined
       } as EnhancedMatch;
     } catch (error) {
-      throw new Error(`Failed to get enhanced match: ${error}`);
+      throw new DatabaseError('Failed to get enhanced match', error);
     }
   }
 
@@ -134,7 +130,7 @@ export class MatchesService {
     start_date: Date; 
     end_date: Date;
     user_id: string;
-  }> = {}): Promise<MatchTable[]> {
+  }> = {}): Promise<Selectable<MatchTable>[]> {
     try {
       let query = this.db.selectFrom('matches').selectAll();
       
@@ -182,10 +178,9 @@ export class MatchesService {
         }
       }
       
-      const matches = await query.orderBy('match_date').execute();
-      return matches as any as MatchTable[];
+      return await query.orderBy('match_date').execute();
     } catch (error) {
-      throw new Error(`Failed to get matches: ${error}`);
+      throw new DatabaseError('Failed to get matches', error);
     }
   }
 
@@ -310,24 +305,22 @@ export class MatchesService {
         } : undefined
       })) as EnhancedMatch[];
     } catch (error) {
-      throw new Error(`Failed to get enhanced matches: ${error}`);
+      throw new DatabaseError('Failed to get enhanced matches', error);
     }
   }
 
   /**
    * Updates an existing match
    */
-  async updateMatch(id: string, data: Partial<Omit<MatchTable, "id" | "created_at" | "updated_at">>): Promise<MatchTable | null> {
+  async updateMatch(id: string, data: Updateable<MatchTable>): Promise<Selectable<MatchTable> | undefined> {
     try {
-      const result = await this.db.updateTable('matches')
-        .set(data as any)
+      return await this.db.updateTable('matches')
+        .set(data)
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirst();
-      
-      return result as any as MatchTable | null;
     } catch (error) {
-      throw new Error(`Failed to update match: ${error}`);
+      throw new DatabaseError('Failed to update match', error);
     }
   }
 
@@ -338,8 +331,8 @@ export class MatchesService {
     matchId: string, 
     homeTeamScore: number, 
     awayTeamScore: number,
-    playerDetails: Record<string, any> 
-  ): Promise<MatchTable | null> {
+    playerDetails: Record<string, unknown>
+  ): Promise<Selectable<MatchTable> | null> {
     try {
       // Start transaction
       const updatedMatch = await this.db.transaction().execute(async (transaction) => {
@@ -349,7 +342,7 @@ export class MatchesService {
           .executeTakeFirst();
 
         if (!match) {
-          throw new Error('Match not found for results submission.');
+          throw new NotFoundError('Match');
         }
         
         // Update match scores and status
@@ -367,12 +360,12 @@ export class MatchesService {
         // Update team stats based on match outcome
         await this.updateTeamStats(transaction, match.league_id, match.home_team_id, match.away_team_id, homeTeamScore, awayTeamScore);
         
-        return result as any as MatchTable | null;
+        return result;
       });
       
       return updatedMatch;
     } catch (error) {
-      throw new Error(`Failed to submit match results: ${error}`);
+      throw new DatabaseError('Failed to submit match results', error);
     }
   }
 
@@ -388,7 +381,7 @@ export class MatchesService {
       const deletedCount = result.length > 0 ? 1 : 0;
       return deletedCount > 0;
     } catch (error) {
-      throw new Error(`Failed to delete match: ${error}`);
+      throw new DatabaseError('Failed to delete match', error);
     }
   }
 
@@ -441,7 +434,7 @@ export class MatchesService {
       
       return isOwner ? isOwner.user_id.toString() === userId : false;
     } catch (error) {
-      throw new Error(`Failed to check if user is league manager: ${error}`);
+      throw new DatabaseError('Failed to check if user is league manager', error);
     }
   }
   
@@ -485,7 +478,7 @@ export class MatchesService {
       
       return { user_id: owner.user_id };
     } catch (error) {
-      throw new Error(`Failed to get league manager: ${error}`);
+      throw new DatabaseError('Failed to get league manager', error);
     }
   }
 
@@ -612,7 +605,7 @@ export class MatchesService {
         average_score: stats.games_played > 0 ? stats.total_score / stats.games_played : 0
       }));
     } catch (error) {
-      throw new Error(`Failed to get user match summaries: ${error}`);
+      throw new DatabaseError('Failed to get user match summaries', error);
     }
   }
 
@@ -654,7 +647,7 @@ export class MatchesService {
       
       return { homeTeam, awayTeam };
     } catch (error) {
-      throw new Error(`Failed to verify teams: ${error}`);
+      throw new DatabaseError('Failed to verify teams', error);
     }
   }
 
@@ -847,7 +840,7 @@ export class MatchesService {
         }))
       };
     } catch (error) {
-      throw new Error(`Failed to bulk update matches: ${error}`);
+      throw new DatabaseError('Failed to bulk update matches', error);
     }
   }
   

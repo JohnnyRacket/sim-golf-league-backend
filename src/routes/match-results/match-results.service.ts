@@ -2,6 +2,7 @@ import { Kysely } from 'kysely';
 import { Database, MatchStatus, NotificationType, MatchResultStatus, LeagueMemberRole, UserRole } from '../../types/database';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateMatchResultSubmissionBody, UpdateMatchResultSubmissionBody, ConflictResponse } from './match-results.types';
+import { NotFoundError, ValidationError, ConflictError, DatabaseError, AuthorizationError } from '../../utils/errors';
 
 export class MatchResultsService {
   private db: Kysely<Database>;
@@ -24,7 +25,7 @@ export class MatchResultsService {
       
       return !!teamMember;
     } catch (error) {
-      throw new Error(`Failed to check team membership: ${error}`);
+      throw new DatabaseError('Failed to check team membership', error);
     }
   }
 
@@ -54,7 +55,7 @@ export class MatchResultsService {
       
       return !!leagueMember;
     } catch (error) {
-      throw new Error(`Failed to check league manager role: ${error}`);
+      throw new DatabaseError('Failed to check league manager role', error);
     }
   }
 
@@ -78,7 +79,7 @@ export class MatchResultsService {
         .where('matches.id', '=', matchId)
         .executeTakeFirst();
     } catch (error) {
-      throw new Error(`Failed to get match details: ${error}`);
+      throw new DatabaseError('Failed to get match details', error);
     }
   }
 
@@ -97,7 +98,7 @@ export class MatchResultsService {
         .where('league_members.role', '=', 'manager' as LeagueMemberRole)
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get league managers: ${error}`);
+      throw new DatabaseError('Failed to get league managers', error);
     }
   }
 
@@ -126,7 +127,7 @@ export class MatchResultsService {
         .where('match_result_submissions.match_id', '=', matchId)
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get match result submissions: ${error}`);
+      throw new DatabaseError('Failed to get match result submissions', error);
     }
   }
 
@@ -148,7 +149,7 @@ export class MatchResultsService {
         .where('team_id', '=', teamId)
         .executeTakeFirst();
     } catch (error) {
-      throw new Error(`Failed to check existing submission: ${error}`);
+      throw new DatabaseError('Failed to check existing submission', error);
     }
   }
 
@@ -160,11 +161,11 @@ export class MatchResultsService {
       // Get match details
       const match = await this.getMatchDetails(data.match_id);
       if (!match) {
-        throw new Error('Match not found');
+        throw new NotFoundError('Match');
       }
 
       if (match.status === 'completed') {
-        throw new Error('Cannot submit result for a completed match');
+        throw new ValidationError('Cannot submit result for a completed match');
       }
 
       // Determine which team the user belongs to
@@ -191,13 +192,13 @@ export class MatchResultsService {
           message: 'Match score updated by league manager'
         };
       } else {
-        throw new Error('User is not a member of either team in this match');
+        throw new AuthorizationError('User is not a member of either team in this match');
       }
 
       // Check if team already has a submission
       const existingSubmission = await this.getTeamSubmission(data.match_id, userTeamId);
       if (existingSubmission) {
-        throw new Error('Team has already submitted a result for this match');
+        throw new ConflictError('Team has already submitted a result for this match');
       }
 
       // Create submission
@@ -299,7 +300,10 @@ export class MatchResultsService {
         message: 'Match result submitted, waiting for opponent submission'
       };
     } catch (error) {
-      throw new Error(`Failed to submit match result: ${error}`);
+      if (error instanceof NotFoundError || error instanceof ValidationError || error instanceof AuthorizationError || error instanceof ConflictError || error instanceof DatabaseError) {
+        throw error;
+      }
+      throw new DatabaseError('Failed to submit match result', error);
     }
   }
 
@@ -328,7 +332,7 @@ export class MatchResultsService {
         .where('match_result_submissions.id', '=', id)
         .executeTakeFirst();
     } catch (error) {
-      throw new Error(`Failed to get submission: ${error}`);
+      throw new DatabaseError('Failed to get submission', error);
     }
   }
 
@@ -352,7 +356,7 @@ export class MatchResultsService {
         .executeTakeFirst();
       
       if (!submission) {
-        throw new Error('Submission not found');
+        throw new NotFoundError('Submission');
       }
 
       // If approving a submission, update the match
@@ -377,7 +381,10 @@ export class MatchResultsService {
         .returning(['id', 'match_id', 'team_id', 'user_id', 'home_team_score', 'away_team_score', 'notes', 'status', 'created_at', 'updated_at'])
         .executeTakeFirst();
     } catch (error) {
-      throw new Error(`Failed to update submission: ${error}`);
+      if (error instanceof NotFoundError || error instanceof DatabaseError) {
+        throw error;
+      }
+      throw new DatabaseError('Failed to update submission', error);
     }
   }
 
@@ -392,7 +399,7 @@ export class MatchResultsService {
       
       return !!result && result.numDeletedRows > BigInt(0);
     } catch (error) {
-      throw new Error(`Failed to delete submission: ${error}`);
+      throw new DatabaseError('Failed to delete submission', error);
     }
   }
 } 

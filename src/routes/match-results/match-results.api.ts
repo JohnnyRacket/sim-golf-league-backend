@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
+import { NotFoundError } from '../../utils/errors';
 import { MatchResultsService } from './match-results.service';
 import {
   matchResultSubmissionSchema,
@@ -32,33 +33,26 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { match_id } = request.params;
-      
-      // Get match details to check permissions
-      const match = await matchResultsService.getMatchDetails(match_id);
-      if (!match) {
-        reply.code(404).send({ error: 'Match not found' });
-        return;
-      }
-      
-      // Check if user is allowed to view these submissions
-      const userId = request.user.id.toString();
-      const isHomeTeamMember = await matchResultsService.isTeamMember(userId, match.home_team_id);
-      const isAwayTeamMember = await matchResultsService.isTeamMember(userId, match.away_team_id);
-      const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
-      
-      if (!isHomeTeamMember && !isAwayTeamMember && !isLeagueManager) {
-        reply.code(403).send({ error: 'Forbidden' });
-        return;
-      }
-      
-      const submissions = await matchResultsService.getMatchResultSubmissions(match_id);
-      return submissions;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { match_id } = request.params;
+
+    // Get match details to check permissions
+    const match = await matchResultsService.getMatchDetails(match_id);
+    if (!match) {
+      throw new NotFoundError('Match');
     }
+
+    // Check if user is allowed to view these submissions
+    const userId = request.user.id.toString();
+    const isHomeTeamMember = await matchResultsService.isTeamMember(userId, match.home_team_id);
+    const isAwayTeamMember = await matchResultsService.isTeamMember(userId, match.away_team_id);
+    const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
+
+    if (!isHomeTeamMember && !isAwayTeamMember && !isLeagueManager) {
+      reply.code(403).send({ error: 'Forbidden' });
+      return;
+    }
+
+    return matchResultsService.getMatchResultSubmissions(match_id);
   });
 
   // Get a specific match result submission
@@ -73,38 +67,31 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const submission = await matchResultsService.getSubmissionById(id);
-      
-      if (!submission) {
-        reply.code(404).send({ error: 'Submission not found' });
-        return;
-      }
-      
-      // Get match details to check permissions
-      const match = await matchResultsService.getMatchDetails(submission.match_id);
-      if (!match) {
-        reply.code(404).send({ error: 'Match not found' });
-        return;
-      }
-      
-      // Check if user is allowed to view this submission
-      const userId = request.user.id.toString();
-      const isHomeTeamMember = await matchResultsService.isTeamMember(userId, match.home_team_id);
-      const isAwayTeamMember = await matchResultsService.isTeamMember(userId, match.away_team_id);
-      const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
-      
-      if (!isHomeTeamMember && !isAwayTeamMember && !isLeagueManager) {
-        reply.code(403).send({ error: 'Forbidden' });
-        return;
-      }
-      
-      return submission;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const submission = await matchResultsService.getSubmissionById(id);
+
+    if (!submission) {
+      throw new NotFoundError('Submission');
     }
+
+    // Get match details to check permissions
+    const match = await matchResultsService.getMatchDetails(submission.match_id);
+    if (!match) {
+      throw new NotFoundError('Match');
+    }
+
+    // Check if user is allowed to view this submission
+    const userId = request.user.id.toString();
+    const isHomeTeamMember = await matchResultsService.isTeamMember(userId, match.home_team_id);
+    const isAwayTeamMember = await matchResultsService.isTeamMember(userId, match.away_team_id);
+    const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
+
+    if (!isHomeTeamMember && !isAwayTeamMember && !isLeagueManager) {
+      reply.code(403).send({ error: 'Forbidden' });
+      return;
+    }
+
+    return submission;
   });
 
   // Submit match result
@@ -135,36 +122,11 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest<{ Body: CreateMatchResultSubmissionBody }>, reply: FastifyReply) => {
-    try {
-      const userId = request.user.id.toString();
-      const data = request.body;
-      
-      // Submit match result
-      const result = await matchResultsService.submitMatchResult(userId, data);
-      
-      return result;
-    } catch (error) {
-      request.log.error(error);
-      
-      // Handle specific error cases
-      const errorMessage = (error instanceof Error) ? error.message : 'Unknown error';
-      
-      if (errorMessage.includes('Match not found')) {
-        reply.code(404).send({ error: errorMessage });
-        return;
-      } else if (errorMessage.includes('not a member')) {
-        reply.code(403).send({ error: errorMessage });
-        return;
-      } else if (errorMessage.includes('already submitted')) {
-        reply.code(409).send({ error: errorMessage });
-        return;
-      } else if (errorMessage.includes('completed match')) {
-        reply.code(400).send({ error: errorMessage });
-        return;
-      }
-      
-      reply.code(500).send({ error: 'Internal server error' });
-    }
+    const userId = request.user.id.toString();
+    const data = request.body;
+
+    // Submit match result - errors propagate to centralized handler
+    return matchResultsService.submitMatchResult(userId, data);
   });
 
   // Update match result submission status (for managers)
@@ -180,38 +142,30 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      const data = request.body;
-      
-      // Get submission first to check permissions
-      const submission = await matchResultsService.getSubmissionById(id);
-      if (!submission) {
-        reply.code(404).send({ error: 'Submission not found' });
-        return;
-      }
-      
-      // Get match details to check permissions
-      const match = await matchResultsService.getMatchDetails(submission.match_id);
-      if (!match) {
-        reply.code(404).send({ error: 'Match not found' });
-        return;
-      }
-      
-      // Only league managers can update submission status
-      const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
-      if (!isLeagueManager) {
-        reply.code(403).send({ error: 'Only league managers can update submission status' });
-        return;
-      }
-      
-      const updated = await matchResultsService.updateSubmissionStatus(id, data);
-      return updated;
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+    const data = request.body;
+
+    // Get submission first to check permissions
+    const submission = await matchResultsService.getSubmissionById(id);
+    if (!submission) {
+      throw new NotFoundError('Submission');
     }
+
+    // Get match details to check permissions
+    const match = await matchResultsService.getMatchDetails(submission.match_id);
+    if (!match) {
+      throw new NotFoundError('Match');
+    }
+
+    // Only league managers can update submission status
+    const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
+    if (!isLeagueManager) {
+      reply.code(403).send({ error: 'Only league managers can update submission status' });
+      return;
+    }
+
+    return matchResultsService.updateSubmissionStatus(id, data);
   });
 
   // Delete a match result submission
@@ -226,44 +180,36 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id.toString();
-      
-      // Get submission first to check permissions
-      const submission = await matchResultsService.getSubmissionById(id);
-      if (!submission) {
-        reply.code(404).send({ error: 'Submission not found' });
-        return;
-      }
-      
-      // Get match details to check permissions
-      const match = await matchResultsService.getMatchDetails(submission.match_id);
-      if (!match) {
-        reply.code(404).send({ error: 'Match not found' });
-        return;
-      }
-      
-      // Check if user is allowed to delete this submission
-      const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
-      const isSubmitter = submission.user_id === userId;
-      
-      if (!isLeagueManager && !isSubmitter) {
-        reply.code(403).send({ error: 'Forbidden' });
-        return;
-      }
-      
-      const deleted = await matchResultsService.deleteSubmission(id);
-      
-      if (!deleted) {
-        reply.code(500).send({ error: 'Failed to delete submission' });
-        return;
-      }
-      
-      return { message: 'Match result submission deleted successfully' };
-    } catch (error) {
-      request.log.error(error);
-      reply.code(500).send({ error: 'Internal server error' });
+    const { id } = request.params;
+    const userId = request.user.id.toString();
+
+    // Get submission first to check permissions
+    const submission = await matchResultsService.getSubmissionById(id);
+    if (!submission) {
+      throw new NotFoundError('Submission');
     }
+
+    // Get match details to check permissions
+    const match = await matchResultsService.getMatchDetails(submission.match_id);
+    if (!match) {
+      throw new NotFoundError('Match');
+    }
+
+    // Check if user is allowed to delete this submission
+    const isLeagueManager = await matchResultsService.isLeagueManager(userId, match.league_id);
+    const isSubmitter = submission.user_id === userId;
+
+    if (!isLeagueManager && !isSubmitter) {
+      reply.code(403).send({ error: 'Forbidden' });
+      return;
+    }
+
+    const deleted = await matchResultsService.deleteSubmission(id);
+
+    if (!deleted) {
+      throw new NotFoundError('Submission');
+    }
+
+    return { message: 'Match result submission deleted successfully' };
   });
-} 
+}

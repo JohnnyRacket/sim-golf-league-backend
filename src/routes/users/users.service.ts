@@ -5,6 +5,7 @@ import {
   UserDashboard,
   UpdateUserBody
 } from './users.types';
+import { DatabaseError } from '../../utils/errors';
 
 export class UsersService {
   private db: Kysely<Database>;
@@ -22,7 +23,7 @@ export class UsersService {
         .select(['id', 'username', 'email', 'created_at', 'updated_at'])
         .execute();
     } catch (error) {
-      throw new Error(`Failed to get users: ${error}`);
+      throw new DatabaseError('Failed to get users', error);
     }
   }
 
@@ -38,7 +39,7 @@ export class UsersService {
       
       return user;
     } catch (error) {
-      throw new Error(`Failed to get user: ${error}`);
+      throw new DatabaseError('Failed to get user', error);
     }
   }
 
@@ -75,7 +76,7 @@ export class UsersService {
       return userProfileData as UserProfile; // Assert as UserProfile
 
     } catch (error) {
-      throw new Error(`Failed to get user profile: ${error}`);
+      throw new DatabaseError('Failed to get user profile', error);
     }
   }
 
@@ -183,7 +184,7 @@ export class UsersService {
       return dashboardData as UserDashboard; // Assert final structure matches type
 
     } catch (error) {
-      throw new Error(`Failed to get user dashboard: ${error}`);
+      throw new DatabaseError('Failed to get user dashboard', error);
     }
   }
 
@@ -199,7 +200,7 @@ export class UsersService {
 
       return !!result && result.numUpdatedRows > BigInt(0);
     } catch (error) {
-      throw new Error(`Failed to update user: ${error}`);
+      throw new DatabaseError('Failed to update user', error);
     }
   }
 } 

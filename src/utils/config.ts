@@ -57,7 +57,8 @@ export const config = {
 
   // Email
   email: {
-    address: process.env.EMAIL_ADDRESS || '',
-    password: process.env.EMAIL_PASSWORD || '',
+    provider: (process.env.EMAIL_PROVIDER || (isProduction ? 'ses' : 'console')) as 'ses' | 'console',
+    fromAddress: process.env.SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'noreply@golfsimleague.com',
+    awsRegion: process.env.AWS_REGION || 'us-east-1',
   },
 } as const;
