@@ -1,17 +1,19 @@
 import { Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
-  // Create custom types
+  // ──────────────────────────────────────────────
+  // Enum types
+  // ──────────────────────────────────────────────
   await sql`CREATE TYPE user_role AS ENUM ('user', 'admin')`.execute(db);
   await sql`CREATE TYPE team_member_role AS ENUM ('captain', 'member')`.execute(db);
   await sql`CREATE TYPE team_status AS ENUM ('active', 'inactive')`.execute(db);
-  await sql`CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed')`.execute(db);
+  await sql`CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed', 'inactive')`.execute(db);
   await sql`CREATE TYPE match_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled')`.execute(db);
   await sql`CREATE TYPE match_game_status AS ENUM ('pending', 'in_progress', 'completed')`.execute(db);
   await sql`CREATE TYPE recipient_type AS ENUM ('league', 'team', 'user')`.execute(db);
   await sql`CREATE TYPE league_member_role AS ENUM ('player', 'spectator', 'manager')`.execute(db);
   await sql`CREATE TYPE league_request_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled')`.execute(db);
-  await sql`CREATE TYPE notification_type AS ENUM ('league_invite', 'team_invite', 'match_reminder', 'match_result', 'team_join_request', 'league_join_request', 'system_message')`.execute(db);
+  await sql`CREATE TYPE notification_type AS ENUM ('league_invite', 'team_invite', 'match_reminder', 'match_result', 'team_join_request', 'league_join_request', 'system_message', 'series_new_league')`.execute(db);
   await sql`CREATE TYPE match_result_status AS ENUM ('pending', 'approved', 'rejected')`.execute(db);
   await sql`CREATE TYPE communication_type AS ENUM ('system', 'league', 'maintenance', 'advertisement', 'schedule')`.execute(db);
   await sql`CREATE TYPE payment_type AS ENUM ('weekly', 'monthly', 'upfront', 'free')`.execute(db);
@@ -22,8 +24,29 @@ export async function up(db: Kysely<any>): Promise<void> {
   await sql`CREATE TYPE scoring_format_type AS ENUM ('net', 'gross')`.execute(db);
   await sql`CREATE TYPE scheduling_format_type AS ENUM ('round_robin', 'groups', 'swiss', 'ladder', 'custom')`.execute(db);
   await sql`CREATE TYPE playoff_format_type AS ENUM ('none', 'single_elimination', 'double_elimination', 'round_robin')`.execute(db);
+  await sql`CREATE TYPE invite_status AS ENUM ('pending', 'accepted', 'expired')`.execute(db);
+  await sql`CREATE TYPE handicap_mode AS ENUM ('none', 'manual', 'auto')`.execute(db);
+  await sql`CREATE TYPE subscription_tier AS ENUM ('free', 'starter', 'pro', 'enterprise')`.execute(db);
+  await sql`CREATE TYPE subscription_status AS ENUM ('active', 'past_due', 'cancelled', 'trialing')`.execute(db);
 
-  // Create users table
+  // ──────────────────────────────────────────────
+  // Trigger function
+  // ──────────────────────────────────────────────
+  await sql`
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql'
+  `.execute(db);
+
+  // ──────────────────────────────────────────────
+  // Tables (in dependency order)
+  // ──────────────────────────────────────────────
+
+  // users
   await db.schema
     .createTable('users')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -31,21 +54,32 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('email', 'varchar(255)', (col) => col.notNull().unique())
     .addColumn('password_hash', 'varchar(255)', (col) => col.notNull())
     .addColumn('role', sql`user_role`, (col) => col.notNull().defaultTo('user'))
+    .addColumn('first_name', 'varchar(100)')
+    .addColumn('last_name', 'varchar(100)')
+    .addColumn('phone', 'varchar(20)')
+    .addColumn('avatar_url', 'text')
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create owners table
+  // owners
   await db.schema
     .createTable('owners')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
     .addColumn('user_id', 'uuid', (col) => col.notNull().references('users.id').onDelete('cascade'))
     .addColumn('name', 'varchar(255)', (col) => col.notNull())
+    .addColumn('subscription_tier', sql`subscription_tier`, (col) => col.notNull().defaultTo('free'))
+    .addColumn('subscription_status', sql`subscription_status`, (col) => col.notNull().defaultTo('active'))
+    .addColumn('subscription_expires_at', 'timestamptz')
+    .addColumn('max_locations', 'integer', (col) => col.notNull().defaultTo(1))
+    .addColumn('max_leagues_per_location', 'integer', (col) => col.notNull().defaultTo(2))
+    .addColumn('payment_provider_customer_id', 'varchar(255)')
+    .addColumn('payment_provider_subscription_id', 'varchar(255)')
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create locations table
+  // locations
   await db.schema
     .createTable('locations')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -61,7 +95,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create bays table
+  // bays
   await db.schema
     .createTable('bays')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -75,7 +109,21 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('bays_location_id_bay_number_unique', ['location_id', 'bay_number'])
     .execute();
 
-  // Create leagues table
+  // series
+  await db.schema
+    .createTable('series')
+    .addColumn('id', 'uuid', (col) => col.primaryKey())
+    .addColumn('location_id', 'uuid', (col) => col.notNull().references('locations.id').onDelete('cascade'))
+    .addColumn('name', 'varchar(255)', (col) => col.notNull())
+    .addColumn('description', 'text')
+    .addColumn('start_date', 'date', (col) => col.notNull())
+    .addColumn('end_date', 'date', (col) => col.notNull())
+    .addColumn('is_active', 'boolean', (col) => col.notNull().defaultTo(true))
+    .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .execute();
+
+  // leagues
   await db.schema
     .createTable('leagues')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -97,11 +145,14 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('playoff_format', sql`playoff_format_type`, (col) => col.defaultTo('none'))
     .addColumn('playoff_size', 'integer', (col) => col.defaultTo(0))
     .addColumn('prize_breakdown', 'jsonb')
+    .addColumn('handicap_mode', sql`handicap_mode`, (col) => col.notNull().defaultTo('none'))
+    .addColumn('series_id', 'uuid', (col) => col.references('series.id').onDelete('set null'))
+    .addColumn('is_public', 'boolean', (col) => col.notNull().defaultTo(true))
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create league_members table
+  // league_members
   await db.schema
     .createTable('league_members')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -114,7 +165,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('league_members_league_id_user_id_unique', ['league_id', 'user_id'])
     .execute();
 
-  // Create league_membership_requests table
+  // league_membership_requests
   await db.schema
     .createTable('league_membership_requests')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -128,7 +179,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('league_membership_requests_unique', ['league_id', 'user_id', 'requested_role'])
     .execute();
 
-  // Create teams table
+  // teams
   await db.schema
     .createTable('teams')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -136,11 +187,12 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('name', 'varchar(255)', (col) => col.notNull())
     .addColumn('max_members', 'integer', (col) => col.notNull())
     .addColumn('status', sql`team_status`, (col) => col.notNull().defaultTo('active'))
+    .addColumn('team_handicap', 'decimal(5, 1)')
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create team_members table
+  // team_members
   await db.schema
     .createTable('team_members')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -153,7 +205,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('team_members_team_id_user_id_unique', ['team_id', 'user_id'])
     .execute();
 
-  // Create team_join_requests table
+  // team_join_requests
   await db.schema
     .createTable('team_join_requests')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -165,7 +217,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('team_join_requests_team_id_user_id_unique', ['team_id', 'user_id'])
     .execute();
 
-  // Create matches table
+  // matches
   await db.schema
     .createTable('matches')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -181,12 +233,18 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('game_format', sql`game_format_type`, (col) => col.defaultTo('individual'))
     .addColumn('match_format', sql`match_format_type`, (col) => col.defaultTo('stroke_play'))
     .addColumn('scoring_format', sql`scoring_format_type`, (col) => col.defaultTo('gross'))
+    .addColumn('is_playoff', 'boolean', (col) => col.notNull().defaultTo(false))
+    .addColumn('playoff_round', 'integer')
+    .addColumn('playoff_seed_home', 'integer')
+    .addColumn('playoff_seed_away', 'integer')
+    .addColumn('next_match_id', 'uuid', (col) => col.references('matches.id').onDelete('set null'))
+    .addColumn('bay_id', 'uuid', (col) => col.references('bays.id').onDelete('set null'))
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addCheckConstraint('matches_different_teams', sql`home_team_id != away_team_id`)
     .execute();
 
-  // Create stats table
+  // stats
   await db.schema
     .createTable('stats')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -201,7 +259,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('stats_team_id_league_id_unique', ['team_id', 'league_id'])
     .execute();
 
-  // Create communications table
+  // communications
   await db.schema
     .createTable('communications')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -217,7 +275,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create notifications table
+  // notifications
   await db.schema
     .createTable('notifications')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -231,7 +289,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create password_reset_challenges table
+  // password_reset_challenges
   await db.schema
     .createTable('password_reset_challenges')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -244,7 +302,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
-  // Create match_result_submissions table
+  // match_result_submissions
   await db.schema
     .createTable('match_result_submissions')
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -260,61 +318,149 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addUniqueConstraint('match_result_submissions_match_team_unique', ['match_id', 'team_id'])
     .execute();
 
-  // Create updated_at trigger function
-  await sql`
-    CREATE OR REPLACE FUNCTION update_updated_at_column()
-    RETURNS TRIGGER AS $$
-    BEGIN
-        NEW.updated_at = CURRENT_TIMESTAMP;
-        RETURN NEW;
-    END;
-    $$ language 'plpgsql'
-  `.execute(db);
+  // league_invites
+  await db.schema
+    .createTable('league_invites')
+    .addColumn('id', 'uuid', (col) => col.primaryKey())
+    .addColumn('league_id', 'uuid', (col) => col.notNull().references('leagues.id').onDelete('cascade'))
+    .addColumn('inviter_id', 'uuid', (col) => col.notNull().references('users.id').onDelete('cascade'))
+    .addColumn('recipient_email', 'varchar(255)', (col) => col.notNull())
+    .addColumn('recipient_user_id', 'uuid', (col) => col.references('users.id').onDelete('set null'))
+    .addColumn('role', sql`league_member_role`, (col) => col.notNull().defaultTo('player'))
+    .addColumn('status', sql`invite_status`, (col) => col.notNull().defaultTo('pending'))
+    .addColumn('invite_code', 'varchar(64)', (col) => col.notNull().unique())
+    .addColumn('expires_at', 'timestamptz', (col) => col.notNull())
+    .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .execute();
 
-  // Create triggers for all tables
-  const tables = [
-    'users', 'owners', 'locations', 'leagues', 'league_members',
-    'league_membership_requests', 'teams', 'team_members', 'team_join_requests',
-    'matches', 'stats', 'communications', 'notifications', 'bays',
-    'password_reset_challenges', 'match_result_submissions'
+  // player_handicaps
+  await db.schema
+    .createTable('player_handicaps')
+    .addColumn('id', 'uuid', (col) => col.primaryKey())
+    .addColumn('user_id', 'uuid', (col) => col.notNull().references('users.id').onDelete('cascade'))
+    .addColumn('league_id', 'uuid', (col) => col.notNull().references('leagues.id').onDelete('cascade'))
+    .addColumn('handicap_index', 'decimal(5, 1)', (col) => col.notNull())
+    .addColumn('effective_date', 'date', (col) => col.notNull())
+    .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .execute();
+
+  // audit_logs
+  await db.schema
+    .createTable('audit_logs')
+    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
+    .addColumn('user_id', 'uuid', (col) => col.references('users.id').onDelete('set null'))
+    .addColumn('action', 'varchar(100)', (col) => col.notNull())
+    .addColumn('entity_type', 'varchar(50)', (col) => col.notNull())
+    .addColumn('entity_id', 'uuid', (col) => col.notNull())
+    .addColumn('details', 'jsonb')
+    .addColumn('ip_address', 'varchar(45)')
+    .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
+    .execute();
+
+  // ──────────────────────────────────────────────
+  // Indexes from original migrations
+  // ──────────────────────────────────────────────
+
+  // league_invites indexes
+  await db.schema
+    .createIndex('idx_league_invites_invite_code')
+    .on('league_invites')
+    .column('invite_code')
+    .execute();
+
+  await db.schema
+    .createIndex('idx_league_invites_recipient_email')
+    .on('league_invites')
+    .column('recipient_email')
+    .execute();
+
+  // player_handicaps indexes
+  await db.schema
+    .createIndex('idx_player_handicaps_unique')
+    .on('player_handicaps')
+    .columns(['user_id', 'league_id', 'effective_date'])
+    .unique()
+    .execute();
+
+  await db.schema
+    .createIndex('idx_player_handicaps_league')
+    .on('player_handicaps')
+    .column('league_id')
+    .execute();
+
+  // leagues → series FK index
+  await db.schema
+    .createIndex('idx_leagues_series_id')
+    .on('leagues')
+    .column('series_id')
+    .execute();
+
+  // series → location FK index
+  await db.schema
+    .createIndex('idx_series_location_id')
+    .on('series')
+    .column('location_id')
+    .execute();
+
+  // audit_logs indexes
+  await db.schema
+    .createIndex('idx_audit_logs_entity')
+    .on('audit_logs')
+    .columns(['entity_type', 'entity_id'])
+    .execute();
+
+  await db.schema
+    .createIndex('idx_audit_logs_user_id')
+    .on('audit_logs')
+    .column('user_id')
+    .execute();
+
+  await db.schema
+    .createIndex('idx_audit_logs_action')
+    .on('audit_logs')
+    .column('action')
+    .execute();
+
+  // matches playoff index
+  await db.schema
+    .createIndex('idx_matches_playoff')
+    .on('matches')
+    .columns(['league_id', 'is_playoff', 'playoff_round'])
+    .execute();
+
+  // matches bay index
+  await db.schema
+    .createIndex('idx_matches_bay_id')
+    .on('matches')
+    .column('bay_id')
+    .execute();
+
+  // leagues name search index
+  await db.schema
+    .createIndex('idx_leagues_name_lower')
+    .on('leagues')
+    .expression(sql`lower(name)`)
+    .execute();
+
+  // ──────────────────────────────────────────────
+  // updated_at triggers (all tables except audit_logs)
+  // ──────────────────────────────────────────────
+  const tablesWithTrigger = [
+    'users', 'owners', 'locations', 'bays', 'series', 'leagues',
+    'league_members', 'league_membership_requests', 'teams', 'team_members',
+    'team_join_requests', 'matches', 'stats', 'communications', 'notifications',
+    'password_reset_challenges', 'match_result_submissions', 'league_invites',
+    'player_handicaps',
   ];
 
-  for (const table of tables) {
+  for (const table of tablesWithTrigger) {
     await sql`
       CREATE TRIGGER ${sql.raw(`update_${table}_updated_at`)}
         BEFORE UPDATE ON ${sql.raw(table)}
         FOR EACH ROW
         EXECUTE FUNCTION update_updated_at_column()
     `.execute(db);
-  }
-}
-
-export async function down(db: Kysely<any>): Promise<void> {
-  // Drop tables in reverse dependency order
-  const tables = [
-    'match_result_submissions', 'password_reset_challenges', 'notifications',
-    'communications', 'stats', 'matches', 'team_join_requests', 'team_members',
-    'teams', 'league_membership_requests', 'league_members', 'leagues', 'bays',
-    'locations', 'owners', 'users'
-  ];
-
-  for (const table of tables) {
-    await db.schema.dropTable(table).ifExists().cascade().execute();
-  }
-
-  // Drop trigger function
-  await sql`DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE`.execute(db);
-
-  // Drop custom types
-  const types = [
-    'playoff_format_type', 'scheduling_format_type', 'scoring_format_type',
-    'match_format_type', 'game_format_type', 'handedness_type', 'day_of_week',
-    'payment_type', 'communication_type', 'match_result_status', 'notification_type',
-    'league_request_status', 'league_member_role', 'recipient_type', 'match_game_status',
-    'match_status', 'league_status', 'team_status', 'team_member_role', 'user_role'
-  ];
-
-  for (const type of types) {
-    await sql`DROP TYPE IF EXISTS ${sql.raw(type)} CASCADE`.execute(db);
   }
 }
