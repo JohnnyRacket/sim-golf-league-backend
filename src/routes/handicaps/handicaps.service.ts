@@ -126,7 +126,7 @@ export class HandicapsService {
     return {
       team_id: team.id,
       team_name: team.name,
-      team_handicap: team.team_handicap,
+      team_handicap: team.team_handicap != null ? Number(team.team_handicap) : null,
       handicap_mode: team.handicap_mode,
     };
   }

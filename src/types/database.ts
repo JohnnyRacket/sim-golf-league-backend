@@ -1,27 +1,77 @@
-import { Generated } from 'kysely';
+import { Generated } from "kysely";
 
-export type UserRole = 'user' | 'admin';
-export type TeamMemberRole = 'captain' | 'member';
-export type TeamStatus = 'active' | 'inactive';
-export type LeagueStatus = 'pending' | 'active' | 'completed' | 'inactive';
-export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-export type MatchGameStatus = 'pending' | 'in_progress' | 'completed';
-export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-export type LeagueMemberRole = 'player' | 'spectator' | 'manager';
-export type LeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-export type NotificationType = 'league_invite' | 'team_invite' | 'match_reminder' | 'match_result' | 'team_join_request' | 'league_join_request' | 'system_message';
-export type MatchResultStatus = 'pending' | 'approved' | 'rejected';
-export type CommunicationType = 'system' | 'league' | 'maintenance' | 'advertisement' | 'schedule';
-export type InviteStatus = 'pending' | 'accepted' | 'expired';
-export type PaymentType = 'weekly' | 'monthly' | 'upfront' | 'free';
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-export type HandednessType = 'left' | 'right' | 'both';
-export type GameFormatType = 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
-export type MatchFormatType = 'stroke_play' | 'match_play';
-export type ScoringFormatType = 'net' | 'gross';
-export type SchedulingFormatType = 'round_robin' | 'groups' | 'swiss' | 'ladder' | 'custom';
-export type PlayoffFormatType = 'none' | 'single_elimination' | 'double_elimination' | 'round_robin';
-export type HandicapMode = 'none' | 'manual' | 'auto';
+export type UserRole = "user" | "admin";
+export type TeamMemberRole = "captain" | "member";
+export type TeamStatus = "active" | "inactive";
+export type LeagueStatus = "pending" | "active" | "completed" | "inactive";
+export type MatchStatus =
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
+export type MatchGameStatus = "pending" | "in_progress" | "completed";
+export type JoinRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+export type LeagueMemberRole = "player" | "spectator" | "manager";
+export type LeagueRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+export type NotificationType =
+  | "league_invite"
+  | "team_invite"
+  | "match_reminder"
+  | "match_result"
+  | "team_join_request"
+  | "league_join_request"
+  | "system_message";
+export type MatchResultStatus = "pending" | "approved" | "rejected";
+export type CommunicationType =
+  | "system"
+  | "league"
+  | "maintenance"
+  | "advertisement"
+  | "schedule";
+export type InviteStatus = "pending" | "accepted" | "expired";
+export type PaymentType = "weekly" | "monthly" | "upfront" | "free";
+export type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+export type HandednessType = "left" | "right" | "both";
+export type GameFormatType =
+  | "scramble"
+  | "best_ball"
+  | "alternate_shot"
+  | "individual";
+export type MatchFormatType = "stroke_play" | "match_play";
+export type ScoringFormatType = "net" | "gross";
+export type SchedulingFormatType =
+  | "round_robin"
+  | "groups"
+  | "swiss"
+  | "ladder"
+  | "custom";
+export type PlayoffFormatType =
+  | "none"
+  | "single_elimination"
+  | "double_elimination"
+  | "round_robin";
+export type HandicapMode = "none" | "manual" | "auto";
+export type SubscriptionTier = "free" | "starter" | "pro" | "enterprise";
+export type SubscriptionStatus =
+  | "active"
+  | "past_due"
+  | "cancelled"
+  | "trialing";
 
 export interface Database {
   users: UserTable;
@@ -42,6 +92,7 @@ export interface Database {
   password_reset_challenges: PasswordResetChallengeTable;
   league_invites: LeagueInviteTable;
   player_handicaps: PlayerHandicapTable;
+  seasons: SeasonTable;
 }
 
 export interface UserTable {
@@ -62,6 +113,11 @@ export interface OwnerTable {
   id: string;
   user_id: string;
   name: string;
+  subscription_tier: Generated<SubscriptionTier>;
+  subscription_status: Generated<SubscriptionStatus>;
+  subscription_expires_at?: Date | null;
+  max_locations: Generated<number>;
+  max_leagues_per_location: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -112,6 +168,7 @@ export interface LeagueTable {
   playoff_size: number;
   prize_breakdown: unknown | null;
   handicap_mode: HandicapMode;
+  season_id?: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -191,7 +248,7 @@ export interface StatsTable {
 export interface CommunicationTable {
   id: string;
   sender_id?: string | null;
-  recipient_type: 'league' | 'team' | 'user';
+  recipient_type: "league" | "team" | "user";
   recipient_id: string;
   type: CommunicationType;
   title: string;
@@ -269,4 +326,16 @@ export interface PasswordResetChallengeTable {
   used: boolean;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
-} 
+}
+
+export interface SeasonTable {
+  id: string;
+  location_id: string;
+  name: string;
+  description?: string | null;
+  start_date: Date;
+  end_date: Date;
+  is_active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}

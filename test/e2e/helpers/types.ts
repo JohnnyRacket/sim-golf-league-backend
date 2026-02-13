@@ -1,15 +1,17 @@
-import { 
-  UserRole, 
-  TeamMemberRole, 
-  TeamStatus, 
-  LeagueStatus, 
+import {
+  UserRole,
+  TeamMemberRole,
+  TeamStatus,
+  LeagueStatus,
   MatchStatus,
   NotificationType,
   MatchResultStatus,
   CommunicationType,
   HandednessType,
   SchedulingFormatType,
-  PlayoffFormatType
+  PlayoffFormatType,
+  InviteStatus,
+  LeagueMemberRole,
 } from '../../../src/types/database';
 
 export interface SeedUser {
@@ -124,6 +126,16 @@ export interface SeedBay {
   details?: Record<string, unknown>;
 }
 
+export interface SeedSeason {
+  id: string;
+  location_id: string;
+  name: string;
+  description?: string | null;
+  start_date: Date;
+  end_date: Date;
+  is_active: boolean;
+}
+
 export interface SeedTokens {
   admin: string;
   user: string;
@@ -141,5 +153,6 @@ export interface SeedData {
   matchResultSubmissions: SeedMatchResultSubmission[];
   communications: SeedCommunication[];
   bays: SeedBay[];
+  seasons: SeedSeason[];
   tokens: SeedTokens;
-} 
+}

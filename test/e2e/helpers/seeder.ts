@@ -15,19 +15,20 @@ import {
   SchedulingFormatType,
   PlayoffFormatType
 } from '../../../src/types/database';
-import { 
-  SeedData, 
-  SeedUser, 
-  SeedOwner, 
-  SeedLocation, 
-  SeedLeague, 
-  SeedTeam, 
-  SeedTeamMember, 
-  SeedMatch, 
+import {
+  SeedData,
+  SeedUser,
+  SeedOwner,
+  SeedLocation,
+  SeedLeague,
+  SeedTeam,
+  SeedTeamMember,
+  SeedMatch,
   SeedNotification,
   SeedMatchResultSubmission,
   SeedCommunication,
-  SeedBay
+  SeedBay,
+  SeedSeason
 } from './types';
 
 // Use the SeedData interface directly
@@ -49,6 +50,7 @@ export async function seed(): Promise<SeedData> {
     matchResultSubmissions: [],
     communications: [],
     bays: [],
+    seasons: [],
     tokens: {
       admin: '',
       user: ''
@@ -275,7 +277,31 @@ export async function seed(): Promise<SeedData> {
       playoff_format: 'none',
       playoff_size: 0
     });
-    
+
+    // Create a season
+    const seasonId = uuidv4();
+    await db.insertInto('seasons')
+      .values({
+        id: seasonId,
+        location_id: locationId,
+        name: 'Spring 2024 Season',
+        description: 'The first season of 2024',
+        start_date: new Date('2024-01-01'),
+        end_date: new Date('2024-06-30'),
+        is_active: true,
+      })
+      .execute();
+
+    result.seasons.push({
+      id: seasonId,
+      location_id: locationId,
+      name: 'Spring 2024 Season',
+      description: 'The first season of 2024',
+      start_date: new Date('2024-01-01'),
+      end_date: new Date('2024-06-30'),
+      is_active: true,
+    });
+
     // Create teams
     const team1Id = uuidv4();
     await db.insertInto('teams')

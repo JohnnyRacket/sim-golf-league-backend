@@ -49,11 +49,15 @@ afterAll(async () => {
     await db.deleteFrom('teams').execute();
     await db.deleteFrom('league_members').execute();
     await db.deleteFrom('league_membership_requests').execute();
-    await db.deleteFrom('communications').execute(); // Delete communications before users
+    await db.deleteFrom('league_invites').execute();
+    await db.deleteFrom('player_handicaps').execute();
+    await db.deleteFrom('communications').execute();
     await db.deleteFrom('leagues').execute();
-    await db.deleteFrom('bays').execute(); // Delete bays before locations
+    await db.deleteFrom('seasons').execute();
+    await db.deleteFrom('bays').execute();
     await db.deleteFrom('locations').execute();
     await db.deleteFrom('owners').execute();
+    await db.deleteFrom('password_reset_challenges').execute();
     await db.deleteFrom('users').execute();
     
     // Close database connection
