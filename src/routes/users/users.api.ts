@@ -97,7 +97,7 @@ export async function userRoutes(fastify: FastifyInstance) {
 
     try {
       // Check if user is requesting their own data or is an owner
-      if (request.user.id.toString() !== id && !request.user.roles.includes('owner')) {
+      if (request.user.id.toString() !== id && !(request.user.platform_role === 'admin' || Object.keys(request.user.locations || {}).length > 0)) {
         reply.code(403).send({ error: 'Forbidden' });
         return;
       }

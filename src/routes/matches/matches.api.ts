@@ -306,7 +306,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
       } = request.body;
       
       // Check if user is admin
-      const isAdmin = request.user.roles.includes('admin');
+      const isAdmin = request.user.platform_role === 'admin';
       
       if (!isAdmin) {
         // Get the league manager to check authorization
@@ -385,7 +385,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const updateData = request.body;
       
       // Check if user is admin
-      const isAdmin = request.user.roles.includes('admin');
+      const isAdmin = request.user.platform_role === 'admin';
       
       // Check if user is authorized to update this match
       let isAuthorized = isAdmin;
@@ -478,7 +478,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { games } = request.body;
       
       // Check authorization
-      const isAdmin = request.user.roles.includes('admin');
+      const isAdmin = request.user.platform_role === 'admin';
       const isManager = await matchesService.isLeagueManager(id, request.user.id.toString());
       
       if (!isAdmin && !isManager) {
@@ -564,7 +564,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
       const { date, new_date, game_format, match_format, scoring_format } = request.body;
       
       // Check authorization
-      const isAdmin = request.user.roles.includes('admin');
+      const isAdmin = request.user.platform_role === 'admin';
       let isAuthorized = isAdmin;
       
       if (!isAdmin) {

@@ -1,14 +1,15 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
 import { Database } from '../types/database';
+import { config } from '../utils/config';
 
 const dialect = new PostgresDialect({
   pool: new Pool({
-    host: process.env.DB_HOST || 'db',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'golf_sim_league',
-    port: Number(process.env.DB_PORT) || 5432,
+    host: config.db.host,
+    user: config.db.user,
+    password: config.db.password,
+    database: config.db.name,
+    port: config.db.port,
     max: 10
   })
 });

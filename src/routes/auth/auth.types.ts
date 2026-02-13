@@ -1,4 +1,3 @@
-import { UserRole } from '../../types/database';
 import { Type } from '@sinclair/typebox';
 
 // Interface for login request
@@ -21,14 +20,6 @@ export interface AuthResult {
     id: string;
     username: string;
   };
-}
-
-// Interface for user with roles
-export interface UserWithRoles {
-  id: string;
-  username: string;
-  email: string;
-  roles: string[];
 }
 
 // Schema definitions

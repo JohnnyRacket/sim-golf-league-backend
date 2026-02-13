@@ -1,16 +1,17 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { AuthService } from './auth.service';
-import { 
-  LoginBody, 
-  RegisterBody, 
+import { authenticate } from '../../middleware/auth';
+import {
+  LoginBody,
+  RegisterBody,
   RequestPasswordResetBody,
   VerifyPasswordResetBody,
-  loginSchema, 
-  registerSchema, 
+  loginSchema,
+  registerSchema,
   requestPasswordResetSchema,
   verifyPasswordResetSchema,
-  tokenResponseSchema, 
+  tokenResponseSchema,
   errorResponseSchema,
   successResponseSchema
 } from './auth.types';
@@ -21,6 +22,12 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Login route
   fastify.post<{ Body: LoginBody }>('/login', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute'
+      }
+    },
     schema: {
       description: 'Login with email and password',
       tags: ['authentication'],
@@ -83,6 +90,12 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Request password reset route
   fastify.post<{ Body: RequestPasswordResetBody }>('/reset-password', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '1 minute'
+      }
+    },
     schema: {
       description: 'Request a password reset challenge',
       tags: ['authentication'],
@@ -127,17 +140,44 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     try {
       const result = await authService.verifyAndResetPassword(email, challengeCode, newPassword);
-      
+
       if (!result.success) {
-        return reply.status(400).send({ 
-          error: result.message || 'Invalid or expired reset code' 
+        return reply.status(400).send({
+          error: result.message || 'Invalid or expired reset code'
         });
       }
 
-      return reply.status(200).send({ 
-        success: true, 
-        message: 'Password reset successful' 
+      return reply.status(200).send({
+        success: true,
+        message: 'Password reset successful'
       });
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  // Refresh token - returns a new JWT with current entity-scoped roles
+  fastify.post('/refresh', {
+    preHandler: [authenticate],
+    schema: {
+      description: 'Refresh JWT token with current roles',
+      tags: ['authentication'],
+      response: {
+        200: tokenResponseSchema,
+        401: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const authResult = await authService.refreshToken(request.user.id);
+
+      if (!authResult) {
+        return reply.status(401).send({ error: 'User not found' });
+      }
+
+      return authResult;
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Internal server error' });

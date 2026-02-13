@@ -3,7 +3,7 @@
 
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('user', 'admin');
-CREATE TYPE team_member_role AS ENUM ('member');
+CREATE TYPE team_member_role AS ENUM ('captain', 'member');
 CREATE TYPE team_status AS ENUM ('active', 'inactive');
 CREATE TYPE league_status AS ENUM ('pending', 'active', 'completed');
 CREATE TYPE match_status AS ENUM ('scheduled', 'in_progress', 'completed', 'cancelled');

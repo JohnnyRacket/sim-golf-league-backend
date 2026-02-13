@@ -4,7 +4,9 @@ import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import jwt from '@fastify/jwt';
+import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from './routes';
+import { config } from './utils/config';
 
 export async function createServer() {
   const server = fastify({
@@ -13,11 +15,17 @@ export async function createServer() {
 
   // Register plugins
   server.register(cors, {
-    origin: true
+    origin: config.corsOrigins
   });
 
   server.register(jwt, {
-    secret: process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production'
+    secret: config.jwtSecret
+  });
+
+  // Global rate limit: 100 requests per minute per IP
+  server.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute'
   });
 
   // Register Swagger
@@ -72,7 +80,7 @@ if (require.main === module) {
   const start = async () => {
     try {
       const server = await createServer();
-      const port = parseInt(process.env.PORT || '3000');
+      const port = config.port;
       await server.listen({ port, host: '0.0.0.0' });
       console.log(`Server is running on http://localhost:${port}`);
       console.log(`API Documentation available at http://localhost:${port}/docs`);

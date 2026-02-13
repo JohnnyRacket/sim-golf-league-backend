@@ -2,7 +2,10 @@ export interface JWTPayload {
   id: string;
   username: string;
   email: string;
-  roles: string[];
+  platform_role: string;
+  locations: Record<string, string>;  // { locationId: 'owner' }
+  leagues: Record<string, string>;    // { leagueId: 'manager' | 'player' | 'spectator' }
+  teams: Record<string, string>;      // { teamId: 'captain' | 'member' }
 }
 
 export interface LoginCredentials {
@@ -20,4 +23,4 @@ declare module '@fastify/jwt' {
   interface FastifyJWT {
     payload: JWTPayload;
   }
-} 
+}

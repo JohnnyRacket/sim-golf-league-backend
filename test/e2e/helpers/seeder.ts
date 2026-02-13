@@ -401,22 +401,29 @@ export async function seed(): Promise<SeedData> {
     
     // Create tokens (these would be actual JWT tokens in a real implementation)
     const jwt = require('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
+    const { config } = require('../../../src/utils/config');
+    const secret = config.jwtSecret;
     
-    // Generate real JWT tokens
+    // Generate Rich JWT tokens with entity-scoped roles
     result.tokens = {
-      admin: jwt.sign({ 
-        id: adminId, 
+      admin: jwt.sign({
+        id: adminId,
         username: 'admin',
         email: 'admin@example.com',
-        roles: ['admin', 'owner']
+        platform_role: 'admin',
+        locations: { [locationId]: 'owner' },
+        leagues: { [leagueId]: 'manager' },
+        teams: {}
       }, secret, { expiresIn: '1h' }),
-      
-      user: jwt.sign({ 
-        id: user1Id, 
+
+      user: jwt.sign({
+        id: user1Id,
         username: 'user1',
         email: 'user1@example.com',
-        roles: ['user']
+        platform_role: 'user',
+        locations: {},
+        leagues: { [leagueId]: 'player' },
+        teams: { [team1Id]: 'member' }
       }, secret, { expiresIn: '1h' })
     };
     

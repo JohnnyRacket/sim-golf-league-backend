@@ -164,7 +164,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       // Check if user is authorized
       const isOwner = await locationsService.isUserLocationOwner(id, userId);
       
-      if (!isOwner && !request.user.roles.includes('admin')) {
+      if (!isOwner && request.user.platform_role !== 'admin') {
         reply.code(403).send({ error: 'You are not authorized to update this location' });
         return;
       }
@@ -214,7 +214,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       // Check if user is authorized
       const isOwner = await locationsService.isUserLocationOwner(id, userId);
       
-      if (!isOwner && !request.user.roles.includes('admin')) {
+      if (!isOwner && request.user.platform_role !== 'admin') {
         reply.code(403).send({ error: 'You are not authorized to delete this location' });
         return;
       }
@@ -341,7 +341,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       // Check if user is authorized
       const isOwner = await locationsService.isUserLocationOwner(id, userId);
       
-      if (!isOwner && !request.user.roles.includes('admin')) {
+      if (!isOwner && request.user.platform_role !== 'admin') {
         reply.code(403).send({ error: 'You are not authorized to add bays to this location' });
         return;
       }
@@ -397,7 +397,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       // Check if user is authorized
       const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
       
-      if (!isOwner && !request.user.roles.includes('admin')) {
+      if (!isOwner && request.user.platform_role !== 'admin') {
         reply.code(403).send({ error: 'You are not authorized to update bays for this location' });
         return;
       }
@@ -448,7 +448,7 @@ export async function locationRoutes(fastify: FastifyInstance) {
       // Check if user is authorized
       const isOwner = await locationsService.isUserLocationOwner(locationId, userId);
       
-      if (!isOwner && !request.user.roles.includes('admin')) {
+      if (!isOwner && request.user.platform_role !== 'admin') {
         reply.code(403).send({ error: 'You are not authorized to delete bays from this location' });
         return;
       }

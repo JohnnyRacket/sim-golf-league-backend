@@ -1,19 +1,20 @@
 import { Kysely } from 'kysely';
 import { Database } from '../../types/database';
-import { UserWithRoles, AuthResult } from './auth.types';
+import { AuthResult } from './auth.types';
 import { UserRole } from '../../types/database';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { emailService } from '../email/email.service';
+import { TokenService } from '../../services/token.service';
 
 export class AuthService {
   private db: Kysely<Database>;
-  private jwtSecret: string;
+  private tokenService: TokenService;
 
   constructor(db: Kysely<Database>) {
     this.db = db;
-    this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
+    this.tokenService = new TokenService(db);
   }
 
   /**
@@ -37,13 +38,10 @@ export class AuthService {
         return null;
       }
 
-      // Get user roles
-      const userWithRoles = await this.getUserWithRoles(user.id);
-      
-      // Generate JWT token
-      const token = this.generateToken(userWithRoles);
+      // Generate Rich JWT with all entity-scoped roles
+      const { token } = await this.tokenService.generateToken(user.id);
 
-      return { 
+      return {
         token,
         user: {
           id: user.id,
@@ -93,18 +91,10 @@ export class AuthService {
         throw new Error('Failed to create user');
       }
 
-      // Create user with roles object
-      const userWithRoles: UserWithRoles = {
-        id: result.id,
-        username: result.username,
-        email: result.email,
-        roles: [result.role]
-      };
-      
-      // Generate JWT token
-      const token = this.generateToken(userWithRoles);
+      // Generate Rich JWT (new user has no entity roles yet)
+      const { token } = await this.tokenService.generateToken(result.id);
 
-      return { 
+      return {
         token,
         user: {
           id: result.id,
@@ -117,9 +107,36 @@ export class AuthService {
   }
 
   /**
+   * Refresh a user's JWT token with current roles.
+   * Called when client needs updated roles (e.g., after being added to a league).
+   */
+  async refreshToken(userId: string): Promise<AuthResult | null> {
+    try {
+      const user = await this.db.selectFrom('users')
+        .select(['id', 'username'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+
+      if (!user) {
+        return null;
+      }
+
+      const { token } = await this.tokenService.generateToken(userId);
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      };
+    } catch (error) {
+      throw new Error(`Token refresh failed: ${error}`);
+    }
+  }
+
+  /**
    * Create a password reset challenge and send email
-   * @param email User's email address
-   * @returns Success status and message
    */
   async createPasswordResetChallenge(email: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -134,14 +151,14 @@ export class AuthService {
         return { success: true, message: 'If your email is registered, you will receive a password reset code.' };
       }
 
-      // Generate a random 6-digit code
-      const challengeCode = Math.floor(100000 + Math.random() * 900000).toString();
-      
+      // Generate a cryptographically secure random 6-digit code
+      const challengeCode = randomInt(100000, 999999).toString();
+
       // Set expiration time (30 minutes from now)
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
-      // Create or update password reset challenge
+      // Create password reset challenge
       await this.db.insertInto('password_reset_challenges')
         .values({
           id: uuidv4(),
@@ -169,10 +186,6 @@ export class AuthService {
 
   /**
    * Verify challenge code and reset password
-   * @param email User's email address
-   * @param challengeCode The 6-digit challenge code
-   * @param newPassword The new password to set
-   * @returns Success status and message
    */
   async verifyAndResetPassword(email: string, challengeCode: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -211,58 +224,4 @@ export class AuthService {
       return { success: false, message: 'Failed to reset password. Please try again later.' };
     }
   }
-
-  /**
-   * Get user with all roles
-   */
-  private async getUserWithRoles(userId: string): Promise<UserWithRoles> {
-    try {
-      // Get user data
-      const user = await this.db.selectFrom('users')
-        .select(['id', 'username', 'email', 'role'])
-        .where('id', '=', userId)
-        .executeTakeFirst();
-
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      // Check if user is an owner
-      const owner = await this.db.selectFrom('owners')
-        .select('id')
-        .where('user_id', '=', userId)
-        .executeTakeFirst();
-
-      // Prepare roles array
-      const roles = [user.role];
-      if (owner) {
-        roles.push('owner' as unknown as UserRole);
-      }
-
-      return {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        roles
-      };
-    } catch (error) {
-      throw new Error(`Failed to get user roles: ${error}`);
-    }
-  }
-
-  /**
-   * Generate JWT token for a user
-   */
-  private generateToken(user: UserWithRoles): string {
-    return jwt.sign(
-      { 
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        roles: user.roles
-      },
-      this.jwtSecret,
-      { expiresIn: '24h' }
-    );
-  }
-} 
+}
