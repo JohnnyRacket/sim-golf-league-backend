@@ -4,7 +4,6 @@ import { checkRole } from "../../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 import {
   MatchStatus,
-  MatchTable,
   GameFormatType,
   MatchFormatType,
   ScoringFormatType,
@@ -332,6 +331,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
         game_format = "individual",
         match_format = "stroke_play",
         scoring_format = "gross",
+        bay_id,
       } = request.body;
 
       // Check if user is admin
@@ -386,6 +386,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
         game_format,
         match_format,
         scoring_format,
+        bay_id: bay_id || undefined,
       };
 
       // Create the match using service
@@ -440,9 +441,7 @@ export async function matchRoutes(fastify: FastifyInstance) {
       }
 
       // Prepare update data
-      const data: Partial<
-        Omit<MatchTable, "id" | "created_at" | "updated_at">
-      > = {};
+      const data: Record<string, any> = {};
       if (updateData.match_date)
         data.match_date = new Date(updateData.match_date);
       if (updateData.status) data.status = updateData.status;
@@ -454,6 +453,8 @@ export async function matchRoutes(fastify: FastifyInstance) {
         data.match_format = updateData.match_format as MatchFormatType;
       if (updateData.scoring_format)
         data.scoring_format = updateData.scoring_format as ScoringFormatType;
+      if (updateData.bay_id !== undefined)
+        data.bay_id = updateData.bay_id;
 
       // Update match using service
       const updatedMatch = await matchesService.updateMatch(id, data);

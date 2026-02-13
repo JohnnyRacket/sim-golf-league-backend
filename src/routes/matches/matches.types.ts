@@ -12,6 +12,7 @@ export interface CreateMatchBody {
   game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
   match_format?: 'stroke_play' | 'match_play';
   scoring_format?: 'net' | 'gross';
+  bay_id?: string;
 }
 
 export interface UpdateMatchBody {
@@ -21,6 +22,7 @@ export interface UpdateMatchBody {
   game_format?: 'scramble' | 'best_ball' | 'alternate_shot' | 'individual';
   match_format?: 'stroke_play' | 'match_play';
   scoring_format?: 'net' | 'gross';
+  bay_id?: string | null;
 }
 
 export interface MatchGameBody {
@@ -234,14 +236,15 @@ export const createMatchSchema = {
     home_team_id: { type: 'string', format: 'uuid' },
     away_team_id: { type: 'string', format: 'uuid' },
     match_date: { type: 'string', format: 'date-time' },
-    simulator_settings: { 
+    simulator_settings: {
       type: 'object',
       additionalProperties: true
     },
     status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
     game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
     match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
-    scoring_format: { type: 'string', enum: ['net', 'gross'] }
+    scoring_format: { type: 'string', enum: ['net', 'gross'] },
+    bay_id: { type: 'string', format: 'uuid' }
   },
   required: ['league_id', 'home_team_id', 'away_team_id', 'match_date']
 };
@@ -250,14 +253,15 @@ export const updateMatchSchema = {
   type: 'object',
   properties: {
     match_date: { type: 'string', format: 'date-time' },
-    simulator_settings: { 
+    simulator_settings: {
       type: 'object',
       additionalProperties: true
     },
     status: { type: 'string', enum: ['scheduled', 'in_progress', 'completed', 'cancelled'] },
     game_format: { type: 'string', enum: ['scramble', 'best_ball', 'alternate_shot', 'individual'] },
     match_format: { type: 'string', enum: ['stroke_play', 'match_play'] },
-    scoring_format: { type: 'string', enum: ['net', 'gross'] }
+    scoring_format: { type: 'string', enum: ['net', 'gross'] },
+    bay_id: { type: ['string', 'null'], format: 'uuid' }
   }
 };
 

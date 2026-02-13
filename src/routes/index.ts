@@ -12,11 +12,14 @@ import { inviteRoutes } from "./invites/invites.api";
 import { handicapRoutes } from "./handicaps/handicaps.api";
 import { subscriptionRoutes } from "./subscriptions/subscriptions.api";
 import { seasonRoutes } from "./seasons/seasons.api";
+import { paymentRoutes } from "./payments/payments.api";
+import { publicLeagueRoutes } from "./leagues/leagues-public.api";
 import { authenticate } from "../middleware/auth";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   // Public routes that don't require authentication
   fastify.register(authRoutes, { prefix: "/auth" });
+  fastify.register(publicLeagueRoutes, { prefix: "/browse" });
 
   // Create a scope for protected routes with authentication
   fastify.register(async (protectedRoutes) => {
@@ -38,5 +41,6 @@ export async function registerRoutes(fastify: FastifyInstance) {
     protectedRoutes.register(handicapRoutes, { prefix: "/handicaps" });
     protectedRoutes.register(subscriptionRoutes, { prefix: "/subscriptions" });
     protectedRoutes.register(seasonRoutes, { prefix: "/seasons" });
+    protectedRoutes.register(paymentRoutes, { prefix: "/payments" });
   });
 }

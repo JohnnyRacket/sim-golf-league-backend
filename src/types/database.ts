@@ -93,6 +93,7 @@ export interface Database {
   league_invites: LeagueInviteTable;
   player_handicaps: PlayerHandicapTable;
   seasons: SeasonTable;
+  audit_logs: AuditLogTable;
 }
 
 export interface UserTable {
@@ -118,6 +119,8 @@ export interface OwnerTable {
   subscription_expires_at?: Date | null;
   max_locations: Generated<number>;
   max_leagues_per_location: Generated<number>;
+  payment_provider_customer_id?: string | null;
+  payment_provider_subscription_id?: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -169,6 +172,7 @@ export interface LeagueTable {
   prize_breakdown: unknown | null;
   handicap_mode: HandicapMode;
   season_id?: string | null;
+  is_public: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -229,6 +233,12 @@ export interface MatchTable {
   game_format?: GameFormatType;
   match_format?: MatchFormatType;
   scoring_format?: ScoringFormatType;
+  is_playoff: Generated<boolean>;
+  playoff_round?: number | null;
+  playoff_seed_home?: number | null;
+  playoff_seed_away?: number | null;
+  next_match_id?: string | null;
+  bay_id?: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -338,4 +348,15 @@ export interface SeasonTable {
   is_active: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+export interface AuditLogTable {
+  id: Generated<string>;
+  user_id?: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details?: Record<string, unknown> | null;
+  ip_address?: string | null;
+  created_at: Generated<Date>;
 }

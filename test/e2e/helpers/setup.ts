@@ -41,11 +41,13 @@ afterAll(async () => {
   
   try {
     // Clean up test data in order respecting foreign key constraints
+    await db.deleteFrom('audit_logs').execute();
     await db.deleteFrom('notifications').execute();
     await db.deleteFrom('match_result_submissions').execute();
     await db.deleteFrom('matches').execute();
     await db.deleteFrom('team_members').execute();
     await db.deleteFrom('team_join_requests').execute();
+    await db.deleteFrom('stats').execute();
     await db.deleteFrom('teams').execute();
     await db.deleteFrom('league_members').execute();
     await db.deleteFrom('league_membership_requests').execute();

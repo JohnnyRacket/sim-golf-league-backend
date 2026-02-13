@@ -100,6 +100,7 @@ export interface CreateLeagueBody {
   playoff_format?: PlayoffFormatType;
   playoff_size?: number;
   prize_breakdown?: Record<string, unknown>;
+  is_public?: boolean;
 }
 
 export interface UpdateLeagueBody {
@@ -120,6 +121,7 @@ export interface UpdateLeagueBody {
   playoff_format?: PlayoffFormatType;
   playoff_size?: number;
   prize_breakdown?: Record<string, unknown>;
+  is_public?: boolean;
 }
 
 export interface CreateMembershipRequestBody {
@@ -332,7 +334,8 @@ export const createLeagueSchema = {
     prize_breakdown: {
       type: 'object',
       additionalProperties: true
-    }
+    },
+    is_public: { type: 'boolean' }
   },
   required: ['name', 'location_id', 'start_date', 'end_date']
 };
@@ -355,7 +358,7 @@ export const updateLeagueSchema = {
     payment_type: { type: 'string', enum: ['weekly', 'monthly', 'upfront', 'free'] },
     day_of_week: { type: 'string', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
     start_time: { type: 'string', format: 'time' },
-    bays: { 
+    bays: {
       type: 'array',
       items: { type: 'string', format: 'uuid' }
     },
@@ -365,7 +368,8 @@ export const updateLeagueSchema = {
     prize_breakdown: {
       type: 'object',
       additionalProperties: true
-    }
+    },
+    is_public: { type: 'boolean' }
   }
 };
 

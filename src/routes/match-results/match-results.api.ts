@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { NotFoundError } from '../../utils/errors';
 import { MatchResultsService } from './match-results.service';
+import { AuditService } from '../../services/audit.service';
 import {
   matchResultSubmissionSchema,
   matchResultSubmissionListSchema,
@@ -21,6 +22,7 @@ import {
 export async function matchResultRoutes(fastify: FastifyInstance) {
   // Initialize service
   const matchResultsService = new MatchResultsService(db);
+  const auditService = new AuditService(db);
 
   // Get all match result submissions for a specific match
   fastify.get<{ Params: MatchIdParams }>('/match/:match_id', {
@@ -165,7 +167,20 @@ export async function matchResultRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    return matchResultsService.updateSubmissionStatus(id, data);
+    const updated = await matchResultsService.updateSubmissionStatus(id, data);
+
+    if (data.status === 'approved') {
+      auditService.log({
+        user_id: userId,
+        action: "match_result.approve",
+        entity_type: "match_result_submission",
+        entity_id: id,
+        details: { match_id: submission.match_id, league_id: match.league_id },
+        ip_address: request.ip,
+      });
+    }
+
+    return updated;
   });
 
   // Delete a match result submission

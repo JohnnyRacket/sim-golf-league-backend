@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { db } from "../../db";
 import { checkPlatformRole } from "../../middleware/auth";
 import { SubscriptionsService } from "./subscriptions.service";
+import { AuditService } from "../../services/audit.service";
 import {
   tierLimitsSchema,
   subscriptionInfoSchema,
@@ -13,6 +14,7 @@ import {
 
 export async function subscriptionRoutes(fastify: FastifyInstance) {
   const subscriptionsService = new SubscriptionsService(db);
+  const auditService = new AuditService(db);
 
   // Get available tier plans (public within auth scope)
   fastify.get(
@@ -91,6 +93,15 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
       }
 
       await subscriptionsService.updateTier(owner.id, request.body.tier);
+
+      auditService.log({
+        user_id: userId,
+        action: "subscription.tier_change",
+        entity_type: "owner",
+        entity_id: owner.id,
+        details: { new_tier: request.body.tier },
+        ip_address: request.ip,
+      });
 
       reply.send({ message: `Subscription updated to ${request.body.tier}` });
     },

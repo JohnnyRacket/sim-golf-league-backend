@@ -581,6 +581,7 @@ export class LeaguesService {
     playoff_size?: number;
     prize_breakdown?: Record<string, unknown>;
     handicap_mode?: HandicapMode;
+    is_public?: boolean;
   }): Promise<LeagueBasic> {
     try {
       const { 
@@ -602,7 +603,8 @@ export class LeaguesService {
         playoff_format = 'none',
         playoff_size = 0,
         prize_breakdown = null,
-        handicap_mode = 'none'
+        handicap_mode = 'none',
+        is_public = true
       } = data;
 
       const leagueId = uuidv4();
@@ -628,7 +630,8 @@ export class LeaguesService {
           playoff_format,
           playoff_size,
           prize_breakdown,
-          handicap_mode
+          handicap_mode,
+          is_public
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -963,5 +966,268 @@ export class LeaguesService {
     const result = new Date(date);
     result.setDate(result.getDate() + weeks * 7);
     return result;
+  }
+
+  /**
+   * Generate a playoff bracket from current standings
+   */
+  async generatePlayoffBracket(leagueId: string): Promise<{ matches_created: number }> {
+    const league = await this.db.selectFrom('leagues')
+      .select(['playoff_format', 'playoff_size', 'end_date', 'day_of_week', 'start_time'])
+      .where('id', '=', leagueId)
+      .executeTakeFirst();
+
+    if (!league) {
+      throw new NotFoundError('League');
+    }
+
+    if (league.playoff_format === 'none' || !league.playoff_size || league.playoff_size < 2) {
+      throw new ValidationError('League does not have playoffs configured');
+    }
+
+    // Check no existing playoff matches
+    const existingPlayoffs = await this.db.selectFrom('matches')
+      .select('id')
+      .where('league_id', '=', leagueId)
+      .where('is_playoff', '=', true)
+      .executeTakeFirst();
+
+    if (existingPlayoffs) {
+      throw new ConflictError('Playoff bracket already exists for this league');
+    }
+
+    // Get standings to seed the bracket
+    const standings = await this.getLeagueStandings(leagueId);
+
+    if (standings.length < league.playoff_size) {
+      throw new ValidationError(
+        `Not enough teams with stats (${standings.length}) for playoff size (${league.playoff_size})`
+      );
+    }
+
+    const playoffTeams = standings.slice(0, league.playoff_size);
+    const startTime = league.start_time || '10:00:00';
+    const dayOfWeek = league.day_of_week || 'saturday';
+
+    // Start playoff matches after the league end date
+    const firstPlayoffDate = this.getNextDayOfWeek(new Date(league.end_date), dayOfWeek);
+
+    // Generate single elimination round 1 matches
+    const matches = this.generateSingleEliminationRound(
+      leagueId,
+      playoffTeams,
+      firstPlayoffDate,
+      startTime,
+      1
+    );
+
+    if (matches.length > 0) {
+      await this.db.insertInto('matches')
+        .values(matches)
+        .execute();
+    }
+
+    return { matches_created: matches.length };
+  }
+
+  /**
+   * Generate matches for a single-elimination round
+   * Seed 1 vs Seed N, Seed 2 vs Seed N-1, etc.
+   */
+  private generateSingleEliminationRound(
+    leagueId: string,
+    teams: Array<{ team_id: string }>,
+    matchDate: Date,
+    startTime: string,
+    round: number
+  ): any[] {
+    const matches = [];
+    const matchDateTime = this.combineDateAndTime(matchDate, startTime);
+
+    for (let i = 0; i < teams.length / 2; i++) {
+      const homeSeed = i + 1;
+      const awaySeed = teams.length - i;
+      const homeTeam = teams[i];
+      const awayTeam = teams[teams.length - 1 - i];
+
+      matches.push({
+        id: uuidv4(),
+        league_id: leagueId,
+        home_team_id: homeTeam.team_id,
+        away_team_id: awayTeam.team_id,
+        match_date: new Date(matchDateTime),
+        status: 'scheduled',
+        is_playoff: true,
+        playoff_round: round,
+        playoff_seed_home: homeSeed,
+        playoff_seed_away: awaySeed,
+      });
+    }
+
+    return matches;
+  }
+
+  /**
+   * Get the playoff bracket for a league
+   */
+  async getPlayoffBracket(leagueId: string): Promise<{
+    format: PlayoffFormatType;
+    playoff_size: number;
+    rounds: Array<{
+      round_number: number;
+      matches: any[];
+    }>;
+  }> {
+    const league = await this.db.selectFrom('leagues')
+      .select(['playoff_format', 'playoff_size'])
+      .where('id', '=', leagueId)
+      .executeTakeFirst();
+
+    if (!league) {
+      throw new NotFoundError('League');
+    }
+
+    const playoffMatches = await this.db.selectFrom('matches')
+      .leftJoin('teams as home_team', 'home_team.id', 'matches.home_team_id')
+      .leftJoin('teams as away_team', 'away_team.id', 'matches.away_team_id')
+      .select([
+        'matches.id',
+        'matches.home_team_id',
+        'matches.away_team_id',
+        'matches.match_date',
+        'matches.status',
+        'matches.home_team_score',
+        'matches.away_team_score',
+        'matches.playoff_round',
+        'matches.playoff_seed_home',
+        'matches.playoff_seed_away',
+        'matches.next_match_id',
+        'home_team.name as home_team_name',
+        'away_team.name as away_team_name',
+      ])
+      .where('matches.league_id', '=', leagueId)
+      .where('matches.is_playoff', '=', true)
+      .orderBy('matches.playoff_round')
+      .orderBy('matches.playoff_seed_home')
+      .execute();
+
+    // Group by round
+    const roundsMap = new Map<number, any[]>();
+    for (const match of playoffMatches) {
+      const round = match.playoff_round ?? 1;
+      if (!roundsMap.has(round)) {
+        roundsMap.set(round, []);
+      }
+      roundsMap.get(round)!.push(match);
+    }
+
+    const rounds = Array.from(roundsMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([round_number, matches]) => ({ round_number, matches }));
+
+    return {
+      format: league.playoff_format as PlayoffFormatType,
+      playoff_size: league.playoff_size,
+      rounds,
+    };
+  }
+
+  /**
+   * Advance winners when all matches in a playoff round are complete.
+   * Creates the next round matches.
+   */
+  async advancePlayoffWinner(matchId: string): Promise<void> {
+    const match = await this.db.selectFrom('matches')
+      .select([
+        'id', 'league_id', 'home_team_id', 'away_team_id',
+        'home_team_score', 'away_team_score', 'status',
+        'is_playoff', 'playoff_round', 'playoff_seed_home', 'playoff_seed_away',
+      ])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+
+    if (!match || !match.is_playoff || match.status !== 'completed') {
+      return;
+    }
+
+    const round = match.playoff_round ?? 1;
+
+    // Get all matches in this round
+    const roundMatches = await this.db.selectFrom('matches')
+      .select(['id', 'status', 'home_team_score', 'away_team_score', 'home_team_id', 'away_team_id', 'playoff_seed_home', 'playoff_seed_away'])
+      .where('league_id', '=', match.league_id)
+      .where('is_playoff', '=', true)
+      .where('playoff_round', '=', round)
+      .orderBy('playoff_seed_home')
+      .execute();
+
+    // If only 1 match in this round, it's the final
+    if (roundMatches.length <= 1) {
+      return;
+    }
+
+    // Check if all matches in this round are complete
+    const allComplete = roundMatches.every(m => m.status === 'completed');
+    if (!allComplete) {
+      return;
+    }
+
+    // Check if next round already exists
+    const nextRoundExists = await this.db.selectFrom('matches')
+      .select('id')
+      .where('league_id', '=', match.league_id)
+      .where('is_playoff', '=', true)
+      .where('playoff_round', '=', round + 1)
+      .executeTakeFirst();
+
+    if (nextRoundExists) {
+      return;
+    }
+
+    // Collect all winners
+    const winners = roundMatches.map(m => {
+      const isHomeWinner = m.home_team_score > m.away_team_score;
+      return {
+        team_id: isHomeWinner ? m.home_team_id : m.away_team_id,
+        seed: isHomeWinner ? m.playoff_seed_home : m.playoff_seed_away,
+      };
+    });
+
+    // Get league scheduling info
+    const league = await this.db.selectFrom('leagues')
+      .select(['day_of_week', 'start_time'])
+      .where('id', '=', match.league_id)
+      .executeTakeFirst();
+
+    const startTime = league?.start_time || '10:00:00';
+    const dayOfWeek = league?.day_of_week || 'saturday';
+
+    // Next round date is 1 week after current round
+    const currentRoundDate = await this.db.selectFrom('matches')
+      .select('match_date')
+      .where('league_id', '=', match.league_id)
+      .where('is_playoff', '=', true)
+      .where('playoff_round', '=', round)
+      .orderBy('match_date', 'desc')
+      .executeTakeFirst();
+
+    const nextRoundDate = currentRoundDate
+      ? this.getNextDayOfWeek(this.addWeeks(new Date(currentRoundDate.match_date), 1), dayOfWeek)
+      : new Date();
+
+    // Create next round matches
+    const nextRoundMatches = this.generateSingleEliminationRound(
+      match.league_id,
+      winners as Array<{ team_id: string }>,
+      nextRoundDate,
+      startTime,
+      round + 1
+    );
+
+    if (nextRoundMatches.length > 0) {
+      await this.db.insertInto('matches')
+        .values(nextRoundMatches)
+        .execute();
+    }
   }
 } 

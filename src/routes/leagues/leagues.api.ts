@@ -34,9 +34,11 @@ import {
   UpdateLeagueMemberBody,
 } from "./leagues.types";
 import { LeaguesService } from "./leagues.service";
+import { AuditService } from "../../services/audit.service";
 
 export async function leagueRoutes(fastify: FastifyInstance) {
   const leaguesService = new LeaguesService(db);
+  const auditService = new AuditService(db);
 
   // Get all leagues
   fastify.get<{
@@ -227,6 +229,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         playoff_format,
         playoff_size,
         prize_breakdown,
+        is_public,
       } = request.body;
 
       const userId = request.user.id.toString();
@@ -262,6 +265,7 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         playoff_format,
         playoff_size,
         prize_breakdown,
+        is_public,
       });
 
       return reply.code(201).send({
@@ -352,6 +356,15 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       if (!deleted) {
         throw new NotFoundError("League");
       }
+
+      auditService.log({
+        user_id: userId,
+        action: "league.delete",
+        entity_type: "league",
+        entity_id: id,
+        details: { league_name: league.name },
+        ip_address: request.ip,
+      });
 
       return { message: "League deleted successfully" };
     },
@@ -494,6 +507,15 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         throw new NotFoundError("Member");
       }
 
+      auditService.log({
+        user_id: request.user.id.toString(),
+        action: "league.member.role_change",
+        entity_type: "league_member",
+        entity_id: memberId,
+        details: { league_id: id, new_role: role },
+        ip_address: request.ip,
+      });
+
       return member;
     },
   );
@@ -537,6 +559,15 @@ export async function leagueRoutes(fastify: FastifyInstance) {
       if (!success) {
         throw new NotFoundError("Member");
       }
+
+      auditService.log({
+        user_id: request.user.id.toString(),
+        action: "league.member.remove",
+        entity_type: "league_member",
+        entity_id: memberId,
+        details: { league_id: id },
+        ip_address: request.ip,
+      });
 
       return { message: "Member removed successfully" };
     },
@@ -824,6 +855,85 @@ export async function leagueRoutes(fastify: FastifyInstance) {
         message: "League schedule generated successfully",
         matches_created: matchesCreated,
       };
+    },
+  );
+
+  // Generate playoff bracket (manager only)
+  fastify.post<{ Params: { id: string } }>(
+    "/:id/generate-playoffs",
+    {
+      preHandler: checkRole(["manager"]),
+      schema: {
+        description: "Generate playoff bracket from standings (manager only)",
+        tags: ["leagues"],
+        params: leagueParamsSchema,
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+              matches_created: { type: "integer" },
+            },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const userId = request.user.id.toString();
+
+      const league = await leaguesService.getLeagueById(id);
+      if (!league) {
+        throw new NotFoundError("League");
+      }
+
+      const isAuthorized = await leaguesService.isUserLeagueManager(id, userId);
+      if (!isAuthorized) {
+        return reply.code(403).send({
+          error: "You are not authorized to generate playoffs for this league",
+        });
+      }
+
+      const result = await leaguesService.generatePlayoffBracket(id);
+
+      auditService.log({
+        user_id: userId,
+        action: "league.generate_playoffs",
+        entity_type: "league",
+        entity_id: id,
+        details: { matches_created: result.matches_created },
+        ip_address: request.ip,
+      });
+
+      return {
+        message: "Playoff bracket generated successfully",
+        matches_created: result.matches_created,
+      };
+    },
+  );
+
+  // Get playoff bracket
+  fastify.get<{ Params: { id: string } }>(
+    "/:id/playoff-bracket",
+    {
+      schema: {
+        description: "Get the playoff bracket for a league",
+        tags: ["leagues"],
+        params: leagueParamsSchema,
+        response: {
+          404: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>) => {
+      const { id } = request.params;
+      return leaguesService.getPlayoffBracket(id);
     },
   );
 }

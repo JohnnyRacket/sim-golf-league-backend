@@ -4,6 +4,7 @@ import { checkLeagueRole } from '../../middleware/auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
 import { InvitesService } from './invites.service';
+import { AuditService } from '../../services/audit.service';
 import {
   createInviteSchema,
   inviteListSchema,
@@ -21,6 +22,7 @@ export async function inviteRoutes(fastify: FastifyInstance) {
   const invitesService = new InvitesService(db);
   const notificationsService = new NotificationsService(db);
   const emailService = new EmailService();
+  const auditService = new AuditService(db);
 
   // Create an invite (league managers only)
   fastify.post<{ Body: CreateInviteBody }>('/', {
@@ -128,6 +130,15 @@ export async function inviteRoutes(fastify: FastifyInstance) {
 
     const result = await invitesService.acceptInvite(invite_code, userId);
 
+    auditService.log({
+      user_id: userId,
+      action: "invite.accept",
+      entity_type: "league_invite",
+      entity_id: result.league_id,
+      details: { role: result.role },
+      ip_address: request.ip,
+    });
+
     reply.send({
       message: `Successfully joined league as ${result.role}`,
     });
@@ -167,6 +178,16 @@ export async function inviteRoutes(fastify: FastifyInstance) {
     }
 
     await invitesService.revokeInvite(request.params.inviteId);
+
+    auditService.log({
+      user_id: request.user.id.toString(),
+      action: "invite.revoke",
+      entity_type: "league_invite",
+      entity_id: request.params.inviteId,
+      details: { league_id: leagueId },
+      ip_address: request.ip,
+    });
+
     reply.send({ message: 'Invite revoked' });
   });
 
