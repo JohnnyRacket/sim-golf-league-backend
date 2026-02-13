@@ -25,9 +25,9 @@ function optionalEnv(name: string, defaultValue: string): string {
   return process.env[name] || defaultValue;
 }
 
-// JWT
-const DEFAULT_JWT_SECRET = isTest || !isProduction
-  ? 'dev-jwt-secret-do-not-use-in-production'
+// better-auth secret (replaces JWT_SECRET)
+const DEFAULT_AUTH_SECRET = isTest || !isProduction
+  ? 'dev-better-auth-secret-do-not-use-in-production'
   : undefined;
 
 export const config = {
@@ -37,9 +37,10 @@ export const config = {
 
   // Server
   port: parseInt(process.env.PORT || '3000'),
+  appUrl: optionalEnv('BETTER_AUTH_URL', `http://localhost:${process.env.PORT || '3000'}`),
 
-  // JWT - required in production, default in dev/test
-  jwtSecret: requireEnv('JWT_SECRET', DEFAULT_JWT_SECRET),
+  // better-auth secret — required in production, default in dev/test
+  authSecret: requireEnv('BETTER_AUTH_SECRET', DEFAULT_AUTH_SECRET),
 
   // Database
   db: {
@@ -54,6 +55,12 @@ export const config = {
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
     : (isProduction ? [] : true as const),
+
+  // OAuth providers (optional — OAuth disabled if not set)
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  appleClientId: process.env.APPLE_CLIENT_ID || '',
+  appleClientSecret: process.env.APPLE_CLIENT_SECRET || '',
 
   // Email
   email: {

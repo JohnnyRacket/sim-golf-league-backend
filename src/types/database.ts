@@ -95,6 +95,11 @@ export interface Database {
   player_handicaps: PlayerHandicapTable;
   series: SeriesTable;
   audit_logs: AuditLogTable;
+  // better-auth tables
+  account: AccountTable;
+  session: SessionTable;
+  verification: VerificationTable;
+  jwks: JwksTable;
 }
 
 export interface UserTable {
@@ -102,6 +107,7 @@ export interface UserTable {
   username: string;
   email: string;
   password_hash: string;
+  email_verified: Generated<boolean>;
   role: UserRole;
   first_name?: string | null;
   last_name?: string | null;
@@ -359,5 +365,52 @@ export interface AuditLogTable {
   entity_id: string;
   details?: Record<string, unknown> | null;
   ip_address?: string | null;
+  created_at: Generated<Date>;
+}
+
+// ──────────────────────────────────────────────
+// better-auth tables
+// ──────────────────────────────────────────────
+
+export interface AccountTable {
+  id: string;
+  user_id: string;
+  account_id: string;
+  provider_id: string;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  id_token?: string | null;
+  access_token_expires_at?: Date | null;
+  refresh_token_expires_at?: Date | null;
+  scope?: string | null;
+  password?: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface SessionTable {
+  id: string;
+  user_id: string;
+  token: string;
+  expires_at: Date;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface VerificationTable {
+  id: string;
+  identifier: string;
+  value: string;
+  expires_at: Date;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface JwksTable {
+  id: string;
+  public_key: string;
+  private_key: string;
   created_at: Generated<Date>;
 }

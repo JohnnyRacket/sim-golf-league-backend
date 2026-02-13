@@ -19,12 +19,6 @@ export interface RegisterData {
   password: string;
 }
 
-declare module '@fastify/jwt' {
-  interface FastifyJWT {
-    payload: JWTPayload;
-  }
-}
-
 declare module 'fastify' {
   interface FastifyRequest {
     user: JWTPayload;

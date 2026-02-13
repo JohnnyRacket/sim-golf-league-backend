@@ -1,11 +1,18 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { verifyRichJWT } from '../services/jwt.service';
 
 /**
- * Verify JWT token is present and valid.
+ * Verify JWT token is present and valid using jose JWKS verification.
  */
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
   try {
-    await request.jwtVerify();
+    const authHeader = request.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+
+    const token = authHeader.substring(7);
+    request.user = await verifyRichJWT(token);
   } catch (err: any) {
     console.error('JWT verification failed:', err.message);
     reply.code(401).send({ error: 'Unauthorized' });

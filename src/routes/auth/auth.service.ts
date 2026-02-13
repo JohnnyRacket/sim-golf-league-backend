@@ -6,28 +6,27 @@ import bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { emailService } from '../email/email.service';
-import { TokenService } from '../../services/token.service';
+import { signRichJWT } from '../../services/jwt.service';
 import { InvitesService } from '../invites/invites.service';
 
 export class AuthService {
   private db: Kysely<Database>;
-  private tokenService: TokenService;
   private invitesService: InvitesService;
 
   constructor(db: Kysely<Database>) {
     this.db = db;
-    this.tokenService = new TokenService(db);
     this.invitesService = new InvitesService(db);
   }
 
   /**
-   * Authenticate a user with email and password
+   * Authenticate a user with email and password.
+   * Checks the account table (better-auth credential provider) first,
+   * falls back to users.password_hash for backward compatibility.
    */
   async loginUser(email: string, password: string): Promise<AuthResult | null> {
     try {
-      // Find user by email
       const user = await this.db.selectFrom('users')
-        .selectAll()
+        .select(['id', 'username', 'email', 'password_hash'])
         .where('email', '=', email)
         .executeTakeFirst();
 
@@ -35,14 +34,24 @@ export class AuthService {
         return null;
       }
 
-      // Verify password
-      const validPassword = await bcrypt.compare(password, user.password_hash);
+      // Try account table first (better-auth credential)
+      const account = await this.db.selectFrom('account')
+        .select(['password'])
+        .where('user_id', '=', user.id)
+        .where('provider_id', '=', 'credential')
+        .executeTakeFirst();
+
+      const hashToCheck = account?.password || user.password_hash;
+      if (!hashToCheck) {
+        return null;
+      }
+
+      const validPassword = await bcrypt.compare(password, hashToCheck);
       if (!validPassword) {
         return null;
       }
 
-      // Generate Rich JWT with all entity-scoped roles
-      const { token } = await this.tokenService.generateToken(user.id);
+      const { token } = await signRichJWT(user.id);
 
       return {
         token,
@@ -57,11 +66,11 @@ export class AuthService {
   }
 
   /**
-   * Register a new user
+   * Register a new user. Creates both a users row and an account row
+   * (better-auth credential provider).
    */
   async registerUser(username: string, email: string, password: string): Promise<AuthResult | null> {
     try {
-      // Check if username or email already exists
       const existingUser = await this.db.selectFrom('users')
         .selectAll()
         .where((eb) => eb.or([
@@ -74,11 +83,9 @@ export class AuthService {
         return null;
       }
 
-      // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Create new user with UUID and role
       const userId = uuidv4();
+
       const result = await this.db.insertInto('users')
         .values({
           id: userId,
@@ -94,11 +101,22 @@ export class AuthService {
         throw new Error('Failed to create user');
       }
 
+      // Create account row for better-auth credential provider
+      await this.db.insertInto('account')
+        .values({
+          id: uuidv4(),
+          user_id: userId,
+          account_id: userId,
+          provider_id: 'credential',
+          password: hashedPassword,
+        })
+        .execute();
+
       // Auto-accept any pending invites for this email
       await this.invitesService.acceptPendingInvitesForEmail(email, result.id);
 
       // Generate Rich JWT (includes any roles from accepted invites)
-      const { token } = await this.tokenService.generateToken(result.id);
+      const { token } = await signRichJWT(result.id);
 
       return {
         token,
@@ -114,7 +132,6 @@ export class AuthService {
 
   /**
    * Refresh a user's JWT token with current roles.
-   * Called when client needs updated roles (e.g., after being added to a league).
    */
   async refreshToken(userId: string): Promise<AuthResult | null> {
     try {
@@ -127,7 +144,7 @@ export class AuthService {
         return null;
       }
 
-      const { token } = await this.tokenService.generateToken(userId);
+      const { token } = await signRichJWT(userId);
 
       return {
         token,
@@ -146,25 +163,20 @@ export class AuthService {
    */
   async createPasswordResetChallenge(email: string): Promise<{ success: boolean; message: string }> {
     try {
-      // Find user by email
       const user = await this.db.selectFrom('users')
         .select(['id', 'username', 'email'])
         .where('email', '=', email)
         .executeTakeFirst();
 
       if (!user) {
-        // For security reasons, don't reveal that the email doesn't exist
         return { success: true, message: 'If your email is registered, you will receive a password reset code.' };
       }
 
-      // Generate a cryptographically secure random 6-digit code
       const challengeCode = randomInt(100000, 999999).toString();
 
-      // Set expiration time (30 minutes from now)
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
-      // Create password reset challenge
       await this.db.insertInto('password_reset_challenges')
         .values({
           id: uuidv4(),
@@ -176,7 +188,6 @@ export class AuthService {
         })
         .execute();
 
-      // Send email with code
       await emailService.sendPasswordResetEmail({
         recipientEmail: user.email,
         username: user.username,
@@ -191,11 +202,11 @@ export class AuthService {
   }
 
   /**
-   * Verify challenge code and reset password
+   * Verify challenge code and reset password.
+   * Updates both users.password_hash and account.password.
    */
   async verifyAndResetPassword(email: string, challengeCode: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     try {
-      // Find the latest challenge for this email
       const challenge = await this.db.selectFrom('password_reset_challenges')
         .selectAll()
         .where('email', '=', email)
@@ -209,13 +220,19 @@ export class AuthService {
         return { success: false, message: 'Invalid or expired code. Please request a new code.' };
       }
 
-      // Hash the new password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-      // Update the user's password
+      // Update users table (backward compat)
       await this.db.updateTable('users')
         .set({ password_hash: hashedPassword })
         .where('id', '=', challenge.user_id)
+        .execute();
+
+      // Update account table (better-auth credential)
+      await this.db.updateTable('account')
+        .set({ password: hashedPassword })
+        .where('user_id', '=', challenge.user_id)
+        .where('provider_id', '=', 'credential')
         .execute();
 
       // Mark the challenge as used

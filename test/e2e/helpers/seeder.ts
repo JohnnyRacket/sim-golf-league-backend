@@ -1,6 +1,7 @@
 import { db } from "../../../src/db";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
+import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import {
   UserRole,
   TeamMemberRole,
@@ -72,6 +73,18 @@ export async function seed(): Promise<SeedData> {
       })
       .execute();
 
+    // Create account row for better-auth credential provider
+    await db
+      .insertInto("account")
+      .values({
+        id: uuidv4(),
+        user_id: adminId,
+        account_id: adminId,
+        provider_id: "credential",
+        password: adminPasswordHash,
+      })
+      .execute();
+
     result.users.push({
       id: adminId,
       username: "admin",
@@ -93,6 +106,17 @@ export async function seed(): Promise<SeedData> {
       })
       .execute();
 
+    await db
+      .insertInto("account")
+      .values({
+        id: uuidv4(),
+        user_id: user1Id,
+        account_id: user1Id,
+        provider_id: "credential",
+        password: user1PasswordHash,
+      })
+      .execute();
+
     result.users.push({
       id: user1Id,
       username: "user1",
@@ -110,6 +134,17 @@ export async function seed(): Promise<SeedData> {
         email: "user2@example.com",
         password_hash: user2PasswordHash,
         role: "user" as UserRole,
+      })
+      .execute();
+
+    await db
+      .insertInto("account")
+      .values({
+        id: uuidv4(),
+        user_id: user2Id,
+        account_id: user2Id,
+        provider_id: "credential",
+        password: user2PasswordHash,
       })
       .execute();
 
@@ -441,40 +476,56 @@ export async function seed(): Promise<SeedData> {
       player_details: playerDetails,
     });
 
-    // Create tokens (these would be actual JWT tokens in a real implementation)
-    const jwt = require("jsonwebtoken");
-    const { config } = require("../../../src/utils/config");
-    const secret = config.jwtSecret;
+    // Generate JWKS key pair and insert into jwks table for JWT signing
+    const { publicKey, privateKey } = await generateKeyPair("EdDSA", {
+      crv: "Ed25519",
+    });
+    const publicJwk = await exportJWK(publicKey);
+    const privateJwk = await exportJWK(privateKey);
+    publicJwk.alg = "EdDSA";
+    privateJwk.alg = "EdDSA";
 
-    // Generate Rich JWT tokens with entity-scoped roles
+    await db
+      .insertInto("jwks")
+      .values({
+        id: uuidv4(),
+        public_key: JSON.stringify(publicJwk),
+        private_key: JSON.stringify(privateJwk),
+      })
+      .execute();
+
+    // Generate Rich JWT tokens with entity-scoped roles using jose
+    const adminToken = await new SignJWT({
+      id: adminId,
+      username: "admin",
+      email: "admin@example.com",
+      platform_role: "admin",
+      locations: { [locationId]: "owner" },
+      leagues: { [leagueId]: "manager" },
+      teams: {},
+    } as unknown as Record<string, unknown>)
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
+    const userToken = await new SignJWT({
+      id: user1Id,
+      username: "user1",
+      email: "user1@example.com",
+      platform_role: "user",
+      locations: {},
+      leagues: { [leagueId]: "player" },
+      teams: { [team1Id]: "member" },
+    } as unknown as Record<string, unknown>)
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
     result.tokens = {
-      admin: jwt.sign(
-        {
-          id: adminId,
-          username: "admin",
-          email: "admin@example.com",
-          platform_role: "admin",
-          locations: { [locationId]: "owner" },
-          leagues: { [leagueId]: "manager" },
-          teams: {},
-        },
-        secret,
-        { expiresIn: "1h" },
-      ),
-
-      user: jwt.sign(
-        {
-          id: user1Id,
-          username: "user1",
-          email: "user1@example.com",
-          platform_role: "user",
-          locations: {},
-          leagues: { [leagueId]: "player" },
-          teams: { [team1Id]: "member" },
-        },
-        secret,
-        { expiresIn: "1h" },
-      ),
+      admin: adminToken,
+      user: userToken,
     };
 
     // Create notifications

@@ -3,11 +3,12 @@ import fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
-import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
+import { toNodeHandler } from 'better-auth/node';
 import { registerRoutes } from './routes';
 import { config } from './utils/config';
 import { ApplicationError } from './utils/errors';
+import { auth } from './auth';
 
 export async function createServer() {
   const server = fastify({
@@ -17,10 +18,6 @@ export async function createServer() {
   // Register plugins
   server.register(cors, {
     origin: config.corsOrigins
-  });
-
-  server.register(jwt, {
-    secret: config.jwtSecret
   });
 
   // Global rate limit: 100 requests per minute per IP (disabled in test)
@@ -65,6 +62,12 @@ export async function createServer() {
   // Health check endpoint (no auth required)
   server.get('/health', async () => {
     return { status: 'ok' };
+  });
+
+  // Mount better-auth handler for native auth endpoints
+  const betterAuthHandler = toNodeHandler(auth);
+  server.all('/api/auth/*', async (request, reply) => {
+    await betterAuthHandler(request.raw, reply.raw);
   });
 
   // Centralized error handler
@@ -112,4 +115,4 @@ if (require.main === module) {
   };
 
   start();
-} 
+}
