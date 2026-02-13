@@ -86,7 +86,7 @@ export class TeamsService {
         return null;
       }
       
-      // Get team members
+      // Get team members (only active members)
       const members = await this.db.selectFrom('team_members')
         .innerJoin('users', 'users.id', 'team_members.user_id')
         .select([
@@ -97,6 +97,7 @@ export class TeamsService {
           'users.username'
         ])
         .where('team_id', '=', id)
+        .where('team_members.status', '=', 'active')
         .orderBy('team_members.role')
         .execute();
       

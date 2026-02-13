@@ -23,11 +23,8 @@ export async function createServer() {
     secret: config.jwtSecret
   });
 
-  // Global rate limit: 100 requests per minute per IP
-  server.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute'
-  });
+  // Global rate limit: 100 requests per minute per IP (disabled in test)
+  server.register(rateLimit, config.rateLimit.global);
 
   // Register Swagger
   server.register(swagger, {
@@ -75,6 +72,12 @@ export async function createServer() {
     if (error instanceof ApplicationError) {
       request.log.warn(error);
       return reply.status(error.statusCode).send({ error: error.message });
+    }
+
+    // Rate limit errors (429)
+    if (error.statusCode === 429) {
+      request.log.warn(error);
+      return reply.status(429).send({ error: error.message || 'Rate limit exceeded' });
     }
 
     // Fastify validation errors (schema validation)

@@ -19,6 +19,9 @@ export class ApiClient {
    * Set authentication token for subsequent requests
    */
   setToken(token: string): void {
+    if (!token || typeof token !== 'string' || token.length === 0) {
+      throw new Error('Invalid token provided to setToken');
+    }
     this.token = token;
   }
 
@@ -54,8 +57,10 @@ export class ApiClient {
       password,
     });
 
-    if (response.status === 200 && response.data.token) {
+    if (response.status === 200 && response.data?.token) {
       this.setToken(response.data.token);
+    } else if (response.status === 200 && !response.data?.token) {
+      console.warn('Login succeeded but no token in response:', response.data);
     }
 
     return response;

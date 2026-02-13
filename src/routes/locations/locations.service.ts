@@ -2,7 +2,7 @@ import { Kysely } from 'kysely';
 import { v4 as uuidv4 } from 'uuid';
 import { Database, HandednessType } from '../../types/database';
 import { LocationBasic, LocationDetail, OwnerInfo } from './locations.types';
-import { DatabaseError, ConflictError } from '../../utils/errors';
+import { DatabaseError, ConflictError, ApplicationError } from '../../utils/errors';
 
 export interface BayBasic {
   id: string;
@@ -353,6 +353,10 @@ export class LocationsService {
       
       return !!result;
     } catch (error) {
+      // Rethrow ApplicationError instances (like ConflictError) without wrapping
+      if (error instanceof ApplicationError) {
+        throw error;
+      }
       throw new DatabaseError('Failed to delete location', error);
     }
   }

@@ -200,7 +200,7 @@ describe('Teams API (E2E)', () => {
       
       const response = await api.put(`/teams/${teamId}/members/${teamMemberId}`, updateData);
       
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(403);
       expect(response.data).toHaveProperty('error');
     });
 

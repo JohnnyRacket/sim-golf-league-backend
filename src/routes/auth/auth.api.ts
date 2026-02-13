@@ -3,6 +3,7 @@ import { db } from '../../db';
 import { AuthService } from './auth.service';
 import { InvitesService } from '../invites/invites.service';
 import { authenticate } from '../../middleware/auth';
+import { config } from '../../utils/config';
 import {
   LoginBody,
   RegisterBody,
@@ -24,10 +25,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // Login route
   fastify.post<{ Body: LoginBody }>('/login', {
     config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: '1 minute'
-      }
+      rateLimit: config.rateLimit.login
     },
     schema: {
       description: 'Login with email and password',
@@ -92,10 +90,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // Request password reset route
   fastify.post<{ Body: RequestPasswordResetBody }>('/reset-password', {
     config: {
-      rateLimit: {
-        max: 3,
-        timeWindow: '1 minute'
-      }
+      rateLimit: config.rateLimit.passwordReset
     },
     schema: {
       description: 'Request a password reset challenge',

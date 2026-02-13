@@ -65,7 +65,7 @@ export interface JoinRequestBody {
 }
 
 export interface MemberRoleUpdateBody {
-  role: 'member';
+  role: 'member' | 'captain';
 }
 
 // Common response schemas
@@ -206,7 +206,7 @@ export const teamMemberBodySchema = {
 export const memberRoleUpdateSchema = {
   type: 'object',
   properties: {
-    role: { type: 'string', enum: ['member'] }
+    role: { type: 'string', enum: ['member', 'captain'] }
   },
   required: ['role']
 };

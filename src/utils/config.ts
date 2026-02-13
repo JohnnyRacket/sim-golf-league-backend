@@ -61,4 +61,20 @@ export const config = {
     fromAddress: process.env.SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'noreply@golfsimleague.com',
     awsRegion: process.env.AWS_REGION || 'us-east-1',
   },
+
+  // Rate limiting - disabled in test, enabled in production/dev
+  rateLimit: {
+    global: {
+      max: isTest ? 10000 : 100,
+      timeWindow: '1 minute' as const,
+    },
+    login: {
+      max: isTest ? 1000 : 5,
+      timeWindow: '1 minute' as const,
+    },
+    passwordReset: {
+      max: isTest ? 1000 : 3,
+      timeWindow: '1 minute' as const,
+    },
+  },
 } as const;

@@ -174,16 +174,11 @@ describe('Communications API (E2E)', () => {
         message: 'This should fail'
       };
       
-      // Note: In a real implementation, we would need authorization checks
-      // Since we don't have those yet in our implementation, this test might pass
-      // when it should fail. We'll write it as if we had proper authorization.
+      // Authorization is now implemented - regular users cannot create communications for leagues
       const response = await api.post('/communications', newComm);
       
-      // This should be 403 once we have proper authorization
-      // For now, just check if it's successful
-      expect(response.status).toBe(200);
-      
-      // TODO: Once authorization is implemented, update this test to expect 403
+      expect(response.status).toBe(403);
+      expect(response.data).toHaveProperty('error');
     });
 
     test('Admin can delete a communication', async () => {

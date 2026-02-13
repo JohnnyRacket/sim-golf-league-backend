@@ -25,6 +25,7 @@ services:
       - DB_PASSWORD=postgres
       - DB_NAME=golf_sim_league_e2e
       - PORT=3001
+      - JWT_SECRET=dev-jwt-secret-do-not-use-in-production
     ports:
       - "3001:3001"
     volumes:
@@ -54,6 +55,7 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DB_NAME=golf_sim_league_e2e
+      - JWT_SECRET=dev-jwt-secret-do-not-use-in-production
       - JEST_ARGS=${JEST_ARGS:-}
     volumes:
       - .:/app

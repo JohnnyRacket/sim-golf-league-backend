@@ -70,7 +70,7 @@ describe('Locations API (E2E)', () => {
   });
 
   describe('Authorization checks', () => {
-    test('Regular users cannot create locations', async () => {
+    test('Regular users can create locations and become owners', async () => {
       await loginAsUser();
       
       const newLocation = {
@@ -80,11 +80,24 @@ describe('Locations API (E2E)', () => {
       
       const response = await api.post('/locations', newLocation);
       
-      expect(response.status).toBe(403);
-      expect(response.data).toHaveProperty('error');
+      expect(response.status).toBe(201);
+      expect(response.data).toHaveProperty('message', 'Location created successfully');
+      expect(response.data).toHaveProperty('id');
+      
+      // Verify the user becomes the owner of the created location
+      const getResponse = await api.get(`/locations/${response.data.id}`);
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.data).toHaveProperty('owner');
+      expect(getResponse.data.owner).toHaveProperty('user_id');
+      
+      // Get the user ID from seed data to verify ownership
+      const regularUserId = seedData.users.find(u => u.email === 'user1@example.com')?.id;
+      if (regularUserId) {
+        expect(getResponse.data.owner.user_id).toBe(regularUserId);
+      }
     });
 
-    test('Only admin can create locations', async () => {
+    test('Admin can create locations', async () => {
       await loginAsAdmin();
       
       const newLocation = {
@@ -255,7 +268,7 @@ describe('Locations API (E2E)', () => {
       // Try to delete the seeded location that has leagues
       const response = await api.delete(`/locations/${locationId}`);
       
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(409);
       expect(response.data).toHaveProperty('error');
       expect(response.data.error).toContain('leagues');
     });

@@ -24,3 +24,9 @@ declare module '@fastify/jwt' {
     payload: JWTPayload;
   }
 }
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    user: JWTPayload;
+  }
+}
