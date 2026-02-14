@@ -1,4 +1,5 @@
-import { Pool } from "pg";
+import pg from "pg";
+const { Pool } = pg;
 import bcrypt from "bcrypt";
 import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";

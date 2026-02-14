@@ -1,5 +1,6 @@
 import { Kysely, PostgresDialect } from 'kysely';
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 import { Database } from '../types/database';
 import { config } from '../utils/config';
 
@@ -10,7 +11,7 @@ const dialect = new PostgresDialect({
     password: config.db.password,
     database: config.db.name,
     port: config.db.port,
-    max: 10
+    max: config.db.poolMax,
   })
 });
 

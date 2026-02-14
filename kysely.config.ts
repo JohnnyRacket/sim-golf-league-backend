@@ -1,6 +1,7 @@
 import { defineConfig } from 'kysely-ctl';
 import { PostgresDialect } from 'kysely';
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 
 export default defineConfig({
   dialect: new PostgresDialect({

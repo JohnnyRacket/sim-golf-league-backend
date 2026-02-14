@@ -49,6 +49,7 @@ export const config = {
     user: optionalEnv('DB_USER', 'postgres'),
     password: optionalEnv('DB_PASSWORD', 'postgres'),
     name: optionalEnv('DB_NAME', 'golf_sim_league'),
+    poolMax: parseInt(optionalEnv('DB_POOL_MAX', '10')),
   },
 
   // CORS
