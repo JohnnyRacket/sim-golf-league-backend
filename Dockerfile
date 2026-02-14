@@ -1,5 +1,5 @@
 # Base stage for both development and test
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 WORKDIR /app
 
 # Install curl for health checks
@@ -14,7 +14,7 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Build TypeScript
+# Type-check only (tsx runs TypeScript directly)
 RUN npm run build
 
 # Expose the port the app runs on
@@ -34,4 +34,4 @@ CMD ["npm", "run", "test-in-container:e2e"]
 # Production stage
 FROM base AS production
 ENV NODE_ENV=production
-CMD ["npm", "start"] 
+CMD ["npm", "start"]

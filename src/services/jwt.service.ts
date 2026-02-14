@@ -1,12 +1,12 @@
-import { SignJWT, jwtVerify, importJWK, createLocalJWKSet, type JWK } from 'jose';
+import { SignJWT, importJWK, jwtVerify, createLocalJWKSet } from 'jose';
 import { db } from '../db';
 import { JWTPayload } from '../types/auth';
 import { buildEntityRoles } from './role-builder';
 
 let cachedKeys: {
-  publicKey: JWK;
-  privateKey: JWK;
-  importedPrivate: Uint8Array | CryptoKey;
+  publicKey: any;
+  privateKey: any;
+  importedPrivate: any;
   alg: string;
   fetchedAt: number;
 } | null = null;
@@ -24,8 +24,8 @@ async function getSigningKey() {
     .orderBy('created_at', 'desc')
     .executeTakeFirstOrThrow();
 
-  const publicKey: JWK = JSON.parse(jwk.public_key);
-  const privateKey: JWK = JSON.parse(jwk.private_key);
+  const publicKey = JSON.parse(jwk.public_key);
+  const privateKey = JSON.parse(jwk.private_key);
   const alg = privateKey.alg || 'EdDSA';
   const importedPrivate = await importJWK(privateKey, alg);
 
@@ -70,7 +70,7 @@ export async function signRichJWT(userId: string): Promise<{ token: string; payl
  * Build a JWKS verifier from the database keys.
  * Cached for performance.
  */
-let cachedJWKS: { verifier: ReturnType<typeof createLocalJWKSet>; fetchedAt: number } | null = null;
+let cachedJWKS: { verifier: any; fetchedAt: number } | null = null;
 
 export async function getJWKSVerifier() {
   if (cachedJWKS && Date.now() - cachedJWKS.fetchedAt < CACHE_TTL) {

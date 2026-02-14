@@ -14,8 +14,11 @@ module.exports = {
   coverageDirectory: 'coverage',
   moduleFileExtensions: ['ts', 'js', 'json'],
   rootDir: '.',
+  transform: {
+    '^.+\\.ts$': ['ts-jest', { tsconfig: { module: 'commonjs' } }]
+  },
   reporters: [
     'default',
-    '<rootDir>/test/e2e/summarize-failures.js'
+    '<rootDir>/test/e2e/summarize-failures.cjs'
   ]
-}; 
+};

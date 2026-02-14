@@ -1,7 +1,7 @@
 import { db } from "../../../src/db";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
-import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import { generateKeyPairSync, sign, KeyObject } from "crypto";
 import {
   UserRole,
   TeamMemberRole,
@@ -477,13 +477,11 @@ export async function seed(): Promise<SeedData> {
     });
 
     // Generate JWKS key pair and insert into jwks table for JWT signing
-    const { publicKey, privateKey } = await generateKeyPair("EdDSA", {
-      crv: "Ed25519",
-    });
-    const publicJwk = await exportJWK(publicKey);
-    const privateJwk = await exportJWK(privateKey);
-    publicJwk.alg = "EdDSA";
-    privateJwk.alg = "EdDSA";
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const publicJwk = publicKey.export({ format: "jwk" });
+    const privateJwk = privateKey.export({ format: "jwk" });
+    (publicJwk as any).alg = "EdDSA";
+    (privateJwk as any).alg = "EdDSA";
 
     await db
       .insertInto("jwks")
@@ -494,8 +492,20 @@ export async function seed(): Promise<SeedData> {
       })
       .execute();
 
-    // Generate Rich JWT tokens with entity-scoped roles using jose
-    const adminToken = await new SignJWT({
+    // Helper to sign JWTs using Node.js crypto (avoids ESM-only jose in Jest)
+    function signJWT(payload: Record<string, unknown>, key: KeyObject): string {
+      const header = { alg: "EdDSA", typ: "JWT" };
+      const now = Math.floor(Date.now() / 1000);
+      const fullPayload = { ...payload, iat: now, exp: now + 3600 };
+      const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
+      const encodedPayload = Buffer.from(JSON.stringify(fullPayload)).toString("base64url");
+      const signingInput = `${encodedHeader}.${encodedPayload}`;
+      const signature = sign(null, Buffer.from(signingInput), key);
+      return `${signingInput}.${signature.toString("base64url")}`;
+    }
+
+    // Generate Rich JWT tokens with entity-scoped roles
+    const adminToken = signJWT({
       id: adminId,
       username: "admin",
       email: "admin@example.com",
@@ -503,13 +513,9 @@ export async function seed(): Promise<SeedData> {
       locations: { [locationId]: "owner" },
       leagues: { [leagueId]: "manager" },
       teams: {},
-    } as unknown as Record<string, unknown>)
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuedAt()
-      .setExpirationTime("1h")
-      .sign(privateKey);
+    }, privateKey);
 
-    const userToken = await new SignJWT({
+    const userToken = signJWT({
       id: user1Id,
       username: "user1",
       email: "user1@example.com",
@@ -517,11 +523,7 @@ export async function seed(): Promise<SeedData> {
       locations: {},
       leagues: { [leagueId]: "player" },
       teams: { [team1Id]: "member" },
-    } as unknown as Record<string, unknown>)
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuedAt()
-      .setExpirationTime("1h")
-      .sign(privateKey);
+    }, privateKey);
 
     result.tokens = {
       admin: adminToken,

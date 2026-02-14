@@ -2,17 +2,16 @@
   "name": "golf-sim-league-backend",
   "version": "1.0.0",
   "description": "Golf simulation league management backend",
-  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test-in-container:e2e": "jest -i --config jest.e2e.config.js",
-    "test:e2e": "node test/e2e/e2e-test.js",
+    "start": "tsx src/index.ts",
+    "start:dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "jest --config jest.config.cjs",
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:coverage": "jest --config jest.config.cjs --coverage",
+    "test-in-container:e2e": "jest -i --config jest.e2e.config.cjs",
+    "test:e2e": "node test/e2e/e2e-test.cjs",
     "migrate": "kysely migrate:latest",
     "migrate:down": "kysely migrate:down",
     "migrate:make": "kysely migrate:make"
@@ -33,6 +32,7 @@
     "jose": "^6.1.3",
     "kysely": "^0.28.0",
     "pg": "^8.14.1",
+    "tsx": "^4.21.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -47,7 +47,6 @@
     "kysely-ctl": "^0.20.0",
     "supertest": "^7.1.0",
     "ts-jest": "^29.3.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3",
     "wait-on": "^8.0.3"
   }

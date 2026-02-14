@@ -14,5 +14,8 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   moduleFileExtensions: ['ts', 'js', 'json'],
-  rootDir: '.'
-}; 
+  rootDir: '.',
+  transform: {
+    '^.+\\.ts$': ['ts-jest', { tsconfig: { module: 'commonjs' } }]
+  }
+};

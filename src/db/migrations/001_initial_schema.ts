@@ -58,6 +58,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('last_name', 'varchar(100)')
     .addColumn('phone', 'varchar(20)')
     .addColumn('avatar_url', 'text')
+    .addColumn('email_verified', 'boolean', (col) => col.defaultTo(false).notNull())
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .addColumn('updated_at', 'timestamptz', (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
@@ -359,6 +360,57 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('created_at', 'timestamptz', (col) => col.defaultTo(sql`now()`).notNull())
     .execute();
 
+  // account — stores credential + OAuth accounts (better-auth)
+  await db.schema
+    .createTable('account')
+    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('user_id', 'uuid', (col) => col.notNull().references('users.id').onDelete('cascade'))
+    .addColumn('account_id', 'text', (col) => col.notNull())
+    .addColumn('provider_id', 'text', (col) => col.notNull())
+    .addColumn('access_token', 'text')
+    .addColumn('refresh_token', 'text')
+    .addColumn('id_token', 'text')
+    .addColumn('access_token_expires_at', 'timestamptz')
+    .addColumn('refresh_token_expires_at', 'timestamptz')
+    .addColumn('scope', 'text')
+    .addColumn('password', 'text')
+    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn('updated_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .execute();
+
+  // session — better-auth sessions
+  await db.schema
+    .createTable('session')
+    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('user_id', 'uuid', (col) => col.notNull().references('users.id').onDelete('cascade'))
+    .addColumn('token', 'text', (col) => col.notNull().unique())
+    .addColumn('expires_at', 'timestamptz', (col) => col.notNull())
+    .addColumn('ip_address', 'text')
+    .addColumn('user_agent', 'text')
+    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn('updated_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .execute();
+
+  // verification — email verification / password reset tokens (better-auth)
+  await db.schema
+    .createTable('verification')
+    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('identifier', 'text', (col) => col.notNull())
+    .addColumn('value', 'text', (col) => col.notNull())
+    .addColumn('expires_at', 'timestamptz', (col) => col.notNull())
+    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn('updated_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .execute();
+
+  // jwks — JWT signing keys (managed by better-auth JWT plugin)
+  await db.schema
+    .createTable('jwks')
+    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('public_key', 'text', (col) => col.notNull())
+    .addColumn('private_key', 'text', (col) => col.notNull())
+    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .execute();
+
   // ──────────────────────────────────────────────
   // Indexes from original migrations
   // ──────────────────────────────────────────────
@@ -444,6 +496,27 @@ export async function up(db: Kysely<any>): Promise<void> {
     .expression(sql`lower(name)`)
     .execute();
 
+  // account indexes
+  await db.schema
+    .createIndex('idx_account_user_id')
+    .on('account')
+    .column('user_id')
+    .execute();
+
+  // session indexes
+  await db.schema
+    .createIndex('idx_session_user_id')
+    .on('session')
+    .column('user_id')
+    .execute();
+
+  // verification indexes
+  await db.schema
+    .createIndex('idx_verification_identifier')
+    .on('verification')
+    .column('identifier')
+    .execute();
+
   // ──────────────────────────────────────────────
   // updated_at triggers (all tables except audit_logs)
   // ──────────────────────────────────────────────
@@ -452,7 +525,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     'league_members', 'league_membership_requests', 'teams', 'team_members',
     'team_join_requests', 'matches', 'stats', 'communications', 'notifications',
     'password_reset_challenges', 'match_result_submissions', 'league_invites',
-    'player_handicaps',
+    'player_handicaps', 'account', 'session', 'verification',
   ];
 
   for (const table of tablesWithTrigger) {

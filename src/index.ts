@@ -4,11 +4,11 @@ import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import rateLimit from '@fastify/rate-limit';
-import { toNodeHandler } from 'better-auth/node';
 import { registerRoutes } from './routes';
 import { config } from './utils/config';
 import { ApplicationError } from './utils/errors';
-import { auth } from './auth';
+import { toNodeHandler } from 'better-auth/node';
+import { getAuth } from './auth';
 
 export async function createServer() {
   const server = fastify({
@@ -65,6 +65,7 @@ export async function createServer() {
   });
 
   // Mount better-auth handler for native auth endpoints
+  const auth = await getAuth();
   const betterAuthHandler = toNodeHandler(auth);
   server.all('/api/auth/*', async (request, reply) => {
     await betterAuthHandler(request.raw, reply.raw);
@@ -99,20 +100,18 @@ export async function createServer() {
   return server;
 }
 
-// Start the server if this file is run directly
-if (require.main === module) {
-  const start = async () => {
-    try {
-      const server = await createServer();
-      const port = config.port;
-      await server.listen({ port, host: '0.0.0.0' });
-      console.log(`Server is running on http://localhost:${port}`);
-      console.log(`API Documentation available at http://localhost:${port}/docs`);
-    } catch (err) {
-      console.error(err);
-      process.exit(1);
-    }
-  };
+// Start the server
+const start = async () => {
+  try {
+    const server = await createServer();
+    const port = config.port;
+    await server.listen({ port, host: '0.0.0.0' });
+    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`API Documentation available at http://localhost:${port}/docs`);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+};
 
-  start();
-}
+start();
