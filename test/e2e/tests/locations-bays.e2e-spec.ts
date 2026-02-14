@@ -13,22 +13,12 @@ describe('Location Bays API (E2E)', () => {
 
   // Helper function to login as admin (who is also an owner)
   async function loginAsAdmin() {
-    const response = await api.post('/auth/login', {
-      email: 'admin@example.com',
-      password: 'admin123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('admin@example.com', 'admin123');
   }
-  
+
   // Helper function to login as regular user
   async function loginAsUser() {
-    const response = await api.post('/auth/login', {
-      email: 'user1@example.com',
-      password: 'password123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('user1@example.com', 'password123');
   }
 
   describe('Authentication requirements', () => {

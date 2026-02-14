@@ -9,21 +9,15 @@ describe('Authentication Flow (E2E)', () => {
   });
 
   it('should fail with invalid credentials', async () => {
-    const response = await api.post('/auth/login', {
-      email: 'nonexistent@example.com',
-      password: 'wrongpassword'
-    });
-    
+    const response = await api.login('nonexistent@example.com', 'wrongpassword');
+
     expect(response.status).toBe(401);
     expect(response.data).toHaveProperty('error');
   });
 
   it('should login successfully with valid credentials', async () => {
-    const response = await api.post('/auth/login', {
-      email: 'user1@example.com',
-      password: 'password123'
-    });
-    
+    const response = await api.login('user1@example.com', 'password123');
+
     expect(response.status).toBe(200);
     expect(response.data).toHaveProperty('token');
     expect(response.data.token).toBeTruthy();
@@ -34,30 +28,26 @@ describe('Authentication Flow (E2E)', () => {
 
   it('should access protected routes after login', async () => {
     // Login first
-    const loginResponse = await api.post('/auth/login', {
-      email: 'user1@example.com',
-      password: 'password123'
-    });
-    
+    const loginResponse = await api.login('user1@example.com', 'password123');
+
     // Check if we got a valid response with token
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.data).toHaveProperty('token');
     expect(typeof loginResponse.data.token).toBe('string');
     expect(loginResponse.data.token.length).toBeGreaterThan(10);
-    
+
     console.log('Token received:', loginResponse.data.token ? 'Yes (length: ' + loginResponse.data.token.length + ')' : 'No');
-    
-    // Set the token
-    api.setToken(loginResponse.data.token);
-    
+
+    // Token is already set by api.login()
+
     // Try accessing a protected route
     const response = await api.get('/leagues/my');
-    
+
     console.log('Protected route response status:', response.status);
     if (response.status !== 200) {
       console.log('Response error:', response.data);
     }
-    
+
     expect(response.status).toBe(200);
     expect(Array.isArray(response.data)).toBe(true);
   });

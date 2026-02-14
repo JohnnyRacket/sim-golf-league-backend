@@ -1,7 +1,7 @@
 import { db } from "../../../src/db";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
-import { generateKeyPairSync, sign, KeyObject } from "crypto";
+import { generateKeyPairSync } from "crypto";
 import {
   UserRole,
   TeamMemberRole,
@@ -52,10 +52,6 @@ export async function seed(): Promise<SeedData> {
     communications: [],
     bays: [],
     series: [],
-    tokens: {
-      admin: "",
-      user: "",
-    },
   };
 
   try {
@@ -476,59 +472,28 @@ export async function seed(): Promise<SeedData> {
       player_details: playerDetails,
     });
 
-    // Generate JWKS key pair and insert into jwks table for JWT signing
-    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-    const publicJwk = publicKey.export({ format: "jwk" });
-    const privateJwk = privateKey.export({ format: "jwk" });
-    (publicJwk as any).alg = "EdDSA";
-    (privateJwk as any).alg = "EdDSA";
+    // Ensure JWKS keys exist for better-auth JWT signing
+    const existingKeys = await db
+      .selectFrom('jwks')
+      .selectAll()
+      .executeTakeFirst();
 
-    await db
-      .insertInto("jwks")
-      .values({
-        id: uuidv4(),
-        public_key: JSON.stringify(publicJwk),
-        private_key: JSON.stringify(privateJwk),
-      })
-      .execute();
+    if (!existingKeys) {
+      const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+      const publicJwk = publicKey.export({ format: "jwk" });
+      const privateJwk = privateKey.export({ format: "jwk" });
+      (publicJwk as any).alg = "EdDSA";
+      (privateJwk as any).alg = "EdDSA";
 
-    // Helper to sign JWTs using Node.js crypto (avoids ESM-only jose in Jest)
-    function signJWT(payload: Record<string, unknown>, key: KeyObject): string {
-      const header = { alg: "EdDSA", typ: "JWT" };
-      const now = Math.floor(Date.now() / 1000);
-      const fullPayload = { ...payload, iat: now, exp: now + 3600 };
-      const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
-      const encodedPayload = Buffer.from(JSON.stringify(fullPayload)).toString("base64url");
-      const signingInput = `${encodedHeader}.${encodedPayload}`;
-      const signature = sign(null, Buffer.from(signingInput), key);
-      return `${signingInput}.${signature.toString("base64url")}`;
+      await db
+        .insertInto("jwks")
+        .values({
+          id: uuidv4(),
+          public_key: JSON.stringify(publicJwk),
+          private_key: JSON.stringify(privateJwk),
+        })
+        .execute();
     }
-
-    // Generate Rich JWT tokens with entity-scoped roles
-    const adminToken = signJWT({
-      id: adminId,
-      username: "admin",
-      email: "admin@example.com",
-      platform_role: "admin",
-      locations: { [locationId]: "owner" },
-      leagues: { [leagueId]: "manager" },
-      teams: {},
-    }, privateKey);
-
-    const userToken = signJWT({
-      id: user1Id,
-      username: "user1",
-      email: "user1@example.com",
-      platform_role: "user",
-      locations: {},
-      leagues: { [leagueId]: "player" },
-      teams: { [team1Id]: "member" },
-    }, privateKey);
-
-    result.tokens = {
-      admin: adminToken,
-      user: userToken,
-    };
 
     // Create notifications
     // 1. Team invite notification for user1

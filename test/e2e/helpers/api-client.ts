@@ -12,6 +12,7 @@ export class ApiClient {
     this.client = axios.create({
       baseURL,
       validateStatus: () => true, // Always resolve promises (don't throw on non-2xx)
+      withCredentials: true, // Enable cookies for better-auth session
     });
   }
 
@@ -50,6 +51,7 @@ export class ApiClient {
 
   /**
    * Perform login and set token automatically
+   * Uses compatibility endpoint that returns JWT directly
    */
   async login(email: string, password: string): Promise<any> {
     const response = await this.client.post('/auth/login', {
@@ -59,8 +61,6 @@ export class ApiClient {
 
     if (response.status === 200 && response.data?.token) {
       this.setToken(response.data.token);
-    } else if (response.status === 200 && !response.data?.token) {
-      console.warn('Login succeeded but no token in response:', response.data);
     }
 
     return response;

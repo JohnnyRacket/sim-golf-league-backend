@@ -1,21 +1,37 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { verifyRichJWT } from '../services/jwt.service';
+import { jwtVerify, createRemoteJWKSet } from 'jose';
+import { config } from '../utils/config';
+import { JWTPayload } from '../types/auth';
+
+// Create remote JWKS for stateless verification (cached automatically by jose)
+const JWKS = createRemoteJWKSet(
+  new URL(`${config.appUrl}/api/auth/jwks`)
+);
 
 /**
- * Verify JWT token is present and valid using jose JWKS verification.
+ * Authenticate middleware - verifies JWT using better-auth JWKS
  */
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+  const authHeader = request.headers.authorization;
 
-    const token = authHeader.substring(7);
-    request.user = await verifyRichJWT(token);
-  } catch (err: any) {
-    console.error('JWT verification failed:', err.message);
-    reply.code(401).send({ error: 'Unauthorized' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return reply.status(401).send({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    // Verify JWT using better-auth JWKS endpoint
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: config.appUrl,
+      audience: config.appUrl,
+    });
+
+    // Attach Rich JWT payload to request
+    request.user = payload as JWTPayload;
+  } catch (error) {
+    request.log.error({ error }, 'JWT verification failed');
+    return reply.status(401).send({ error: 'Invalid or expired token' });
   }
 }
 

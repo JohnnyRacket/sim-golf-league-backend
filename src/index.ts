@@ -7,7 +7,6 @@ import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from './routes';
 import { config } from './utils/config';
 import { ApplicationError } from './utils/errors';
-import { toNodeHandler } from 'better-auth/node';
 import { getAuth } from './auth';
 
 export async function createServer() {
@@ -17,7 +16,11 @@ export async function createServer() {
 
   // Register plugins
   server.register(cors, {
-    origin: config.corsOrigins
+    origin: config.corsOrigins, // Array of allowed origins
+    credentials: true, // Required for authentication cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    maxAge: 86400, // Preflight cache: 24 hours
   });
 
   // Global rate limit: 100 requests per minute per IP (disabled in test)
@@ -64,11 +67,43 @@ export async function createServer() {
     return { status: 'ok' };
   });
 
-  // Mount better-auth handler for native auth endpoints
+  // Mount better-auth handler using Fastify-specific Fetch API integration
   const auth = await getAuth();
-  const betterAuthHandler = toNodeHandler(auth);
   server.all('/api/auth/*', async (request, reply) => {
-    await betterAuthHandler(request.raw, reply.raw);
+    // Convert Fastify request to Fetch API format (per better-auth Fastify guide)
+    const url = new URL(
+      request.url,
+      `${request.protocol}://${request.headers.host}`
+    );
+
+    // Convert Fastify headers to Web API Headers
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(request.headers)) {
+      if (value) {
+        headers.append(key, Array.isArray(value) ? value[0] : value);
+      }
+    }
+
+    // Create Fetch API-compatible request
+    const fetchRequest = new Request(url.toString(), {
+      method: request.method,
+      headers,
+      body: request.method !== 'GET' && request.method !== 'HEAD'
+        ? JSON.stringify(request.body)
+        : undefined,
+    });
+
+    // Call better-auth handler
+    const response = await auth.handler(fetchRequest);
+
+    // Set response status and headers
+    reply.status(response.status);
+    response.headers.forEach((value, key) => {
+      reply.header(key, value);
+    });
+
+    // Return response body
+    return reply.send(await response.text());
   });
 
   // Centralized error handler

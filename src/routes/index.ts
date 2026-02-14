@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { authRoutes } from "./auth/auth.api";
+import { tokenRefreshRoutes } from "./auth/token-refresh.api";
+import { authCompatRoutes } from "./auth/auth-compat.api";
 import { userRoutes } from "./users/users.api";
 import { leagueRoutes } from "./leagues/leagues.api";
 import { teamRoutes } from "./teams/teams.api";
@@ -18,7 +19,7 @@ import { authenticate } from "../middleware/auth";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   // Public routes that don't require authentication
-  fastify.register(authRoutes, { prefix: "/auth" });
+  fastify.register(authCompatRoutes, { prefix: "/auth" });
   fastify.register(publicLeagueRoutes, { prefix: "/browse" });
 
   // Create a scope for protected routes with authentication
@@ -27,6 +28,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
     protectedRoutes.addHook("onRequest", authenticate);
 
     // Register protected entity routes
+    protectedRoutes.register(tokenRefreshRoutes, { prefix: "/auth" });
     protectedRoutes.register(userRoutes, { prefix: "/users" });
     protectedRoutes.register(leagueRoutes, { prefix: "/leagues" });
     protectedRoutes.register(teamRoutes, { prefix: "/teams" });

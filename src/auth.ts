@@ -50,7 +50,15 @@ export async function getAuth() {
       },
     },
 
+    // Stateless sessions - no DB queries for session validation
     session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 900, // 15 minutes (short-lived for security)
+        strategy: "jwt", // JWT strategy for stateless cookies
+        refreshCache: false, // No auto-refresh
+      },
+      expiresIn: 60 * 60 * 24, // 24 hours
       fields: {
         expiresAt: "expires_at",
         createdAt: "created_at",
@@ -121,7 +129,10 @@ export async function getAuth() {
     plugins: [
       jwt({
         jwks: {
-          disablePrivateKeyEncryption: true,
+          // Enable private key encryption for security (removed disablePrivateKeyEncryption)
+          // Key rotation for security best practices
+          rotationInterval: 60 * 60 * 24 * 30, // 30 days
+          gracePeriod: 60 * 60 * 24 * 30,      // 30 days grace period
         },
         jwt: {
           expirationTime: "24h",

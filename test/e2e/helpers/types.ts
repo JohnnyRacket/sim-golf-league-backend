@@ -136,11 +136,6 @@ export interface SeedSeries {
   is_active: boolean;
 }
 
-export interface SeedTokens {
-  admin: string;
-  user: string;
-}
-
 export interface SeedData {
   users: SeedUser[];
   owners: SeedOwner[];
@@ -154,5 +149,4 @@ export interface SeedData {
   communications: SeedCommunication[];
   bays: SeedBay[];
   series: SeedSeries[];
-  tokens: SeedTokens;
 }

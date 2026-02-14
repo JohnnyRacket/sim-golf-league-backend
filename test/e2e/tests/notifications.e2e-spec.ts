@@ -31,22 +31,12 @@ describe('Notifications API (E2E)', () => {
 
   // Helper function to login as regular user (user1)
   async function loginAsUser1() {
-    const response = await api.post('/auth/login', {
-      email: 'user1@example.com',
-      password: 'password123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('user1@example.com', 'password123');
   }
 
   // Helper function to login as user2
   async function loginAsUser2() {
-    const response = await api.post('/auth/login', {
-      email: 'user2@example.com',
-      password: 'password123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('user2@example.com', 'password123');
   }
 
   describe('Authentication requirements', () => {

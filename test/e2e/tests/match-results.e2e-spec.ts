@@ -48,30 +48,15 @@ describe('Match Result Submissions API (E2E)', () => {
 
   // Helper functions for login
   async function loginAsAdmin() {
-    const response = await api.post('/auth/login', {
-      email: 'admin@example.com',
-      password: 'admin123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('admin@example.com', 'admin123');
   }
-  
+
   async function loginAsUser1() {
-    const response = await api.post('/auth/login', {
-      email: 'user1@example.com',
-      password: 'password123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('user1@example.com', 'password123');
   }
-  
+
   async function loginAsUser2() {
-    const response = await api.post('/auth/login', {
-      email: 'user2@example.com',
-      password: 'password123'
-    });
-    api.setToken(response.data.token);
-    return response.data.token;
+    await api.login('user2@example.com', 'password123');
   }
 
   describe('Authentication requirements', () => {
