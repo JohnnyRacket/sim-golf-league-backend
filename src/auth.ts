@@ -1,6 +1,7 @@
 import pg from "pg";
 const { Pool } = pg;
 import bcrypt from "bcrypt";
+import { randomUUID } from "crypto";
 import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { config } from "./utils/config";
@@ -28,6 +29,13 @@ export async function getAuth() {
     secret: config.authSecret,
     baseURL: config.appUrl,
     basePath: "/api/auth",
+
+    // Generate UUIDs instead of better-auth's default nanoid
+    advanced: {
+      database: {
+        generateId: () => randomUUID(),
+      },
+    },
 
     user: {
       modelName: "users",
@@ -156,6 +164,7 @@ export async function getAuth() {
             fields: {
               publicKey: "public_key",
               privateKey: "private_key",
+              expiresAt: "expires_at",
               createdAt: "created_at",
             },
           },

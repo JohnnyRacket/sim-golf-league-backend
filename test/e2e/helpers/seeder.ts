@@ -485,12 +485,17 @@ export async function seed(): Promise<SeedData> {
       (publicJwk as any).alg = "EdDSA";
       (privateJwk as any).alg = "EdDSA";
 
+      // Set expiration to 30 days from now (matching better-auth rotation interval)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
       await db
         .insertInto("jwks")
         .values({
           id: uuidv4(),
           public_key: JSON.stringify(publicJwk),
           private_key: JSON.stringify(privateJwk),
+          expires_at: expiresAt,
         })
         .execute();
     }

@@ -52,7 +52,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
     .addColumn('username', 'varchar(255)', (col) => col.notNull().unique())
     .addColumn('email', 'varchar(255)', (col) => col.notNull().unique())
-    .addColumn('password_hash', 'varchar(255)', (col) => col.notNull())
+    .addColumn('password_hash', 'varchar(255)') // Nullable - better-auth stores passwords in account table
     .addColumn('role', sql`user_role`, (col) => col.notNull().defaultTo('user'))
     .addColumn('first_name', 'varchar(100)')
     .addColumn('last_name', 'varchar(100)')
@@ -408,6 +408,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('id', 'text', (col) => col.primaryKey())
     .addColumn('public_key', 'text', (col) => col.notNull())
     .addColumn('private_key', 'text', (col) => col.notNull())
+    .addColumn('expires_at', 'timestamptz', (col) => col.notNull())
     .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
     .execute();
 
