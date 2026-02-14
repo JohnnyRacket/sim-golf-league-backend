@@ -146,6 +146,8 @@ export async function getAuth() {
               locations: roles.locations,
               leagues: roles.leagues,
               teams: roles.teams,
+              subscription_tier: roles.subscription_tier,
+              subscription_status: roles.subscription_status,
             };
           },
         },

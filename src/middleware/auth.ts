@@ -176,6 +176,46 @@ export function checkLocationRole(paramKey: string) {
   };
 }
 
+/**
+ * Check if user has one of the specified subscription tiers.
+ * Admin always passes subscription checks.
+ *
+ * @param tiers - Allowed subscription tiers (e.g., ['pro', 'enterprise'])
+ * @param requireActive - If true, also check that subscription_status is 'active' (default: true)
+ */
+export function checkSubscriptionTier(tiers: string[], requireActive: boolean = true) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = request.user;
+      if (user.platform_role === 'admin') return; // admin bypasses all
+
+      // If user has no subscription info, treat as 'free' tier
+      const userTier = user.subscription_tier || 'free';
+      const userStatus = user.subscription_status || 'active';
+
+      // Check tier requirement
+      if (!tiers.includes(userTier)) {
+        return reply.code(403).send({
+          error: 'Subscription tier insufficient',
+          required_tier: tiers,
+          current_tier: userTier,
+        });
+      }
+
+      // Check status requirement (if enabled)
+      if (requireActive && userStatus !== 'active') {
+        return reply.code(403).send({
+          error: 'Subscription not active',
+          subscription_status: userStatus,
+        });
+      }
+    } catch (err: any) {
+      console.error('Error checking subscription tier:', err.message);
+      reply.code(401).send({ error: 'Unauthorized' });
+    }
+  };
+}
+
 // Keep the old checkRole for backward compatibility during migration
 // TODO: Remove once all routes are migrated to entity-scoped checks
 export function checkRole(roles: string[]) {

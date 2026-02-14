@@ -186,12 +186,16 @@ GET  /api/auth/jwks                 # Public keys (JWKS endpoint)
   "locations": { "location-id": "owner" },
   "leagues": { "league-id": "manager|player|spectator" },
   "teams": { "team-id": "captain|member" },
+  "subscription_tier": "free|starter|pro|enterprise",
+  "subscription_status": "active|past_due|cancelled|trialing",
   "iat": 1234567890,
   "exp": 1234654290,
   "iss": "http://localhost:3000",
   "aud": "http://localhost:3000"
 }
 ```
+
+**Note**: `subscription_tier` and `subscription_status` are optional fields that are only present if the user is a location owner.
 
 ### Authorization Examples
 
@@ -206,6 +210,10 @@ GET  /api/auth/jwks                 # Public keys (JWKS endpoint)
 
 **Team-level** (requires `teams[teamId]: "captain"|"member"`):
 - `PUT /teams/:id` - Captain or admin
+
+**Subscription-level** (requires `subscription_tier` in allowed tiers):
+- Feature gating based on subscription tier (free, starter, pro, enterprise)
+- Use `checkSubscriptionTier(['pro', 'enterprise'])` middleware
 
 ---
 

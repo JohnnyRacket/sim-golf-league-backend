@@ -182,7 +182,7 @@ GET /api/auth/jwks
 
 ## JWT Structure (Rich JWT)
 
-All JWTs include entity-scoped roles for zero-database authorization:
+All JWTs include entity-scoped roles and subscription information for zero-database authorization:
 
 ```json
 {
@@ -193,6 +193,8 @@ All JWTs include entity-scoped roles for zero-database authorization:
   "locations": { "location-id": "owner" },
   "leagues": { "league-id": "manager|player|spectator" },
   "teams": { "team-id": "captain|member" },
+  "subscription_tier": "free|starter|pro|enterprise",
+  "subscription_status": "active|past_due|cancelled|trialing",
   "iat": 1234567890,
   "exp": 1234654290,
   "iss": "http://localhost:3000",
@@ -217,6 +219,11 @@ All JWTs include entity-scoped roles for zero-database authorization:
 **Team Roles** (`teams`):
 - `captain` - Can manage team roster
 - `member` - Regular team member
+
+**Subscription Information**:
+- `subscription_tier` - User's subscription level (free, starter, pro, enterprise)
+- `subscription_status` - Current subscription state (active, past_due, cancelled, trialing)
+- Both fields are optional and only present if user is a location owner
 
 ## Frontend Integration
 
@@ -287,6 +294,65 @@ POST /leagues/:id/teams    // League manager or admin
 
 // Team-level (requires teams[teamId]: "captain"|"member")
 PUT /teams/:id             // Team captain or admin
+
+// Subscription-level (requires subscription_tier in allowed tiers)
+POST /premium-feature      // Pro or Enterprise only
+POST /advanced-analytics   // Enterprise only
+```
+
+### Subscription-Based Authorization
+
+Use the `checkSubscriptionTier` middleware to gate features by subscription level:
+
+```typescript
+import { authenticate, checkSubscriptionTier } from './middleware/auth';
+
+// Require Pro or Enterprise subscription
+fastify.post('/premium-feature', {
+  preHandler: [
+    authenticate,
+    checkSubscriptionTier(['pro', 'enterprise'])
+  ]
+}, async (request, reply) => {
+  // Only users with pro or enterprise tier can access
+});
+
+// Require Enterprise subscription only
+fastify.post('/enterprise-analytics', {
+  preHandler: [
+    authenticate,
+    checkSubscriptionTier(['enterprise'])
+  ]
+}, async (request, reply) => {
+  // Only enterprise users can access
+});
+
+// Allow any tier but don't require active status
+fastify.get('/feature-preview', {
+  preHandler: [
+    authenticate,
+    checkSubscriptionTier(['starter', 'pro', 'enterprise'], false)
+  ]
+}, async (request, reply) => {
+  // Allows past_due, trialing, etc.
+});
+```
+
+**Response on insufficient tier:**
+```json
+{
+  "error": "Subscription tier insufficient",
+  "required_tier": ["pro", "enterprise"],
+  "current_tier": "free"
+}
+```
+
+**Response on inactive subscription:**
+```json
+{
+  "error": "Subscription not active",
+  "subscription_status": "past_due"
+}
 ```
 
 ## Security Features

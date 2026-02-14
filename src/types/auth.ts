@@ -6,6 +6,8 @@ export interface JWTPayload {
   locations: Record<string, string>;  // { locationId: 'owner' }
   leagues: Record<string, string>;    // { leagueId: 'manager' | 'player' | 'spectator' }
   teams: Record<string, string>;      // { teamId: 'captain' | 'member' }
+  subscription_tier?: string;         // 'free' | 'starter' | 'pro' | 'enterprise'
+  subscription_status?: string;       // 'active' | 'past_due' | 'cancelled' | 'trialing'
 }
 
 export interface LoginCredentials {

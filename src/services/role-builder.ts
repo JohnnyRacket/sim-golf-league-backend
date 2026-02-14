@@ -4,6 +4,8 @@ export interface EntityRoles {
   locations: Record<string, string>;
   leagues: Record<string, string>;
   teams: Record<string, string>;
+  subscription_tier?: string;
+  subscription_status?: string;
 }
 
 /**
@@ -57,15 +59,45 @@ async function getTeamRoles(userId: string): Promise<Record<string, string>> {
 }
 
 /**
+ * Get subscription information for a user.
+ * Returns subscription_tier and subscription_status if user is an owner.
+ */
+async function getSubscription(userId: string): Promise<{
+  subscription_tier?: string;
+  subscription_status?: string;
+}> {
+  const owner = await db.selectFrom('owners')
+    .select(['subscription_tier', 'subscription_status'])
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  if (!owner) {
+    return {};
+  }
+
+  return {
+    subscription_tier: owner.subscription_tier,
+    subscription_status: owner.subscription_status,
+  };
+}
+
+/**
  * Build all entity-scoped roles for a user in parallel.
  * Used by better-auth's JWT definePayload and by token refresh.
  */
 export async function buildEntityRoles(userId: string): Promise<EntityRoles> {
-  const [locations, leagues, teams] = await Promise.all([
+  const [locations, leagues, teams, subscription] = await Promise.all([
     getLocationRoles(userId),
     getLeagueRoles(userId),
     getTeamRoles(userId),
+    getSubscription(userId),
   ]);
 
-  return { locations, leagues, teams };
+  return {
+    locations,
+    leagues,
+    teams,
+    subscription_tier: subscription.subscription_tier,
+    subscription_status: subscription.subscription_status,
+  };
 }
